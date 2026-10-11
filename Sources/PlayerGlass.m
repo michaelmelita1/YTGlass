@@ -4,11 +4,15 @@
 // glass views): +[YTFrostedGlassView liquidGlassEffect] returns a UIGlassEffect on iOS 26 when the
 // enableLiquidGlassEffect flag is on, with liquidGlassEffectStyle 1 = regular and 2 = clear. We turn that on,
 // and give the top-row buttons (captions, settings, cast, ...) the same glass circles.
+//
+// YTPlus puts a second row of buttons (mute, sleep timer, its menu) under the top row's quality label and settings
+// button, in a UIStackView of YTQTMButtons labelled YTL...; that row is moved up beside them, so it gets glass too.
 
 #import "Common.h"
 
 static NSInteger const PGGlassStyle = 2;       // YouTube's liquidGlassEffectStyle: 1 regular, 2 clear
 static CGFloat const PGTopGlassDiameter = 40.0; // glass circle behind each top-row button
+static CGFloat const PGRowGap = 10.0;           // between YTPlus's row and the top row
 
 // Hooks only when the method returns the expected type (these are YouTube flags; a changed type means a
 // changed meaning).
@@ -72,6 +76,43 @@ static void PGCollectTopButtons(UIView *view, CGFloat maxY, UIView *overlay, Cla
     }
 }
 
+#pragma mark - YTPlus's row
+
+static UIView *PGFindIdentifier(UIView *view, NSString *identifier, int depth) {
+    if ([view.accessibilityIdentifier isEqualToString:identifier]) return view;
+    if (depth <= 0) return nil;
+    for (UIView *subview in view.subviews) {
+        UIView *found = PGFindIdentifier(subview, identifier, depth - 1);
+        if (found) return found;
+    }
+    return nil;
+}
+
+static UIStackView *PGYTPlusRow(UIView *overlay, Class buttonClass) {
+    for (UIView *subview in overlay.subviews) {
+        if (![subview isKindOfClass:UIStackView.class]) continue;
+        NSArray<UIView *> *buttons = ((UIStackView *)subview).arrangedSubviews;
+        BOOL ytplus = buttons.count > 0;
+        for (UIView *button in buttons) {
+            if (![button isKindOfClass:buttonClass] || ![button.accessibilityLabel hasPrefix:@"YTL"]) ytplus = NO;
+        }
+        if (ytplus) return (UIStackView *)subview;
+    }
+    return nil;
+}
+
+// Moved with a transform: YTPlus keeps laying the row out where it was, and the move is worked out again each time.
+static void PGMoveYTPlusRow(UIView *overlay, Class buttonClass) {
+    UIStackView *row = PGYTPlusRow(overlay, buttonClass);
+    UIView *settings = PGFindIdentifier(overlay, @"id.player.overflow.button", 3);
+    UIView *topRow = settings.superview;
+    if (row == nil || topRow == nil) return;
+    CGRect top = [topRow convertRect:topRow.bounds toView:overlay];
+    CGPoint target = CGPointMake(CGRectGetMinX(top) - PGRowGap - CGRectGetWidth(row.bounds) / 2.0, CGRectGetMidY(top));
+    CGAffineTransform move = CGAffineTransformMakeTranslation(target.x - row.center.x, target.y - row.center.y);
+    if (!CGAffineTransformEqualToTransform(row.transform, move)) row.transform = move;
+}
+
 static IMP OriginalOverlayLayout;
 
 static void PGOverlayLayout(UIView *self, SEL _cmd) {
@@ -80,6 +121,7 @@ static void PGOverlayLayout(UIView *self, SEL _cmd) {
     if (buttonClass == Nil) buttonClass = NSClassFromString(@"YTQTMButton");
     SEL maxYSel = NSSelectorFromString(@"topControlsMaxY");
     if (buttonClass == Nil || ![self respondsToSelector:maxYSel]) return;
+    PGMoveYTPlusRow(self, buttonClass);
     CGFloat maxY = ((CGFloat (*)(id, SEL))objc_msgSend)(self, maxYSel);
     if (maxY <= 0.0) return;
     NSMutableArray *buttons = [NSMutableArray array];
