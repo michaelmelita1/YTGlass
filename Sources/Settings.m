@@ -9,6 +9,7 @@ static NSInteger const YTGSection = 'ytgl'; // settings category number (4-char 
 static NSString *const YTGSearchModeKey = @"YTGlass_SearchMode";
 NSString *const YTGTopBarKey = @"YTGlass_HideTopBar";
 NSString *const YTGPlayerKey = @"YTGlass_PlayerGlass";
+NSString *const YTGSlideUpKey = @"YTGlass_NoSlideUpAnimation";
 NSString *const YTGYTPlusFixesKey = @"YTGlass_YTPlusSettingsFix"; // key kept from 0.0.4
 
 BOOL YTGFeatureEnabled(NSString *key) {
@@ -141,6 +142,8 @@ static void YTGUpdateSection(id self, SEL _cmd, NSUInteger category, id entry) {
                   @"Removes the navigation bar and styles it like a native app.", YTGTopBarKey) ?: NSNull.null,
         YTGSwitch(@"Liquid Glass player",
                   @"Liquid Glass video player controls.", YTGPlayerKey) ?: NSNull.null,
+        YTGSwitch(@"YT Slide Up Animation",
+                  @"Disable the default animation when loading a new tab.", YTGSlideUpKey) ?: NSNull.null,
         YTGSwitch(@"YTPlus Fixes",
                   @"Fix the YT settings close button when Liquid Glass is enabled.", YTGYTPlusFixesKey) ?: NSNull.null,
         YTGNote(@"Restart YouTube to apply changes.") ?: NSNull.null,
