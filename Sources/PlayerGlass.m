@@ -6,8 +6,8 @@
 // and give the top-row buttons (captions, settings, cast, ...) the same glass circles.
 //
 // YTPlus puts a second row of buttons (mute, sleep timer, its menu) under the top row's quality label and settings
-// button, in a UIStackView of YTQTMButtons labelled YTL...; that row is moved up between them (quality label, YTPlus's
-// buttons, settings, at the row's own spacing), and the group shares one glass capsule instead of a circle each.
+// button, in a UIStackView of YTQTMButtons labelled YTL...; that row is moved up beside them (at its own spacing), and
+// the group shares one glass capsule instead of a circle each.
 
 #import "Common.h"
 
@@ -109,27 +109,9 @@ static UIStackView *PGYTPlusRow(UIView *overlay, Class buttonClass) {
 
 static const void *PGGroupKey = &PGGroupKey; // settings button -> the group's glass capsule
 
-// The top row's container, once the quality label is moved out of its bounds: taps there still reach the label.
-@interface PGTopRowView : UIView
-@end
-
-@implementation PGTopRowView
-- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
-    UIView *hit = [super hitTest:point withEvent:event];
-    if (hit != nil && hit != self) return hit;
-    for (UIView *subview in self.subviews.reverseObjectEnumerator) {
-        if (CGAffineTransformIsIdentity(subview.transform) || subview.hidden || subview.alpha < 0.01 || !subview.userInteractionEnabled) continue;
-        CGRect area = subview.frame; // the button and what it draws (the label sits outside its zero height)
-        for (UIView *inner in subview.subviews) area = CGRectUnion(area, [subview convertRect:inner.frame toView:self]);
-        if (CGRectContainsPoint(CGRectInset(area, -8.0, -8.0), point)) return subview;
-    }
-    return hit;
-}
-@end
-
 // Moved with a transform: YTPlus keeps laying the row out where it was, and the move is worked out again each time.
 // YouTube fades each button on its own, so the capsule lives in the settings button (fading with it) and reaches
-// left under the quality label and YTPlus's row, which are kept above it. Returns the capsule's frame in the overlay,
+// left under the quality label and YTPlus's row (kept above the top row). Returns the capsule's frame in the overlay,
 // or CGRectNull.
 static CGRect PGGroupYTPlusRow(UIView *overlay, Class buttonClass) {
     UIStackView *row = PGYTPlusRow(overlay, buttonClass);
@@ -137,32 +119,23 @@ static CGRect PGGroupYTPlusRow(UIView *overlay, Class buttonClass) {
     UIView *topRow = settings.superview;
     if (row == nil || topRow == nil || row.superview != overlay || topRow.superview != overlay) return CGRectNull;
     CGRect top = topRow.frame;
-    CGRect settingsFrame = [topRow convertRect:settings.frame toView:overlay];
-    CGFloat gap = row.spacing;
-    // YTPlus's row right before settings.
-    CGFloat rowWidth = CGRectGetWidth(row.bounds);
-    CGPoint target = CGPointMake(CGRectGetMinX(settingsFrame) - gap - rowWidth / 2.0, CGRectGetMidY(top));
-    CGAffineTransform move = CGAffineTransformMakeTranslation(target.x - row.center.x, target.y - row.center.y);
-    if (!CGAffineTransformEqualToTransform(row.transform, move)) row.transform = move;
-    if ([overlay.subviews indexOfObject:row] < [overlay.subviews indexOfObject:topRow]) [overlay insertSubview:row aboveSubview:topRow];
-    // The quality label left of it, above the capsule.
-    UIView *quality = nil;
+    // The top row's visible buttons: settings, and the quality label unless it's hidden or moved elsewhere.
+    CGRect group = [topRow convertRect:settings.frame toView:overlay];
     for (UIView *sibling in topRow.subviews) {
         if (sibling == settings || ![sibling isKindOfClass:buttonClass] || sibling.hidden || sibling.alpha < 0.01) continue;
         for (UIView *inner in sibling.subviews) {
-            if (!inner.hidden && inner.alpha >= 0.01 && CGRectGetWidth(inner.bounds) > 0.0) quality = sibling; // something drawn
+            if (!inner.hidden && inner.alpha >= 0.01 && CGRectGetWidth(inner.bounds) > 0.0) {
+                group = CGRectUnion(group, [sibling convertRect:inner.frame toView:overlay]); // something drawn
+            }
         }
+        if ([topRow.subviews indexOfObject:sibling] < [topRow.subviews indexOfObject:settings]) [topRow bringSubviewToFront:sibling]; // above the capsule
     }
-    CGRect group = CGRectUnion(row.frame, settingsFrame);
-    if (quality) {
-        if (object_getClass(topRow) == UIView.class) object_setClass(topRow, PGTopRowView.class);
-        CGFloat x = target.x - rowWidth / 2.0 - gap - CGRectGetWidth(quality.bounds) / 2.0;
-        CGPoint center = [topRow convertPoint:quality.center toView:overlay];
-        CGAffineTransform shift = CGAffineTransformMakeTranslation(x - center.x, 0.0);
-        if (!CGAffineTransformEqualToTransform(quality.transform, shift)) quality.transform = shift;
-        if (topRow.subviews.lastObject != quality) [topRow bringSubviewToFront:quality];
-        group = CGRectUnion(group, [topRow convertRect:quality.frame toView:overlay]);
-    }
+    // YTPlus's row just left of them, at its own spacing.
+    CGPoint target = CGPointMake(CGRectGetMinX(group) - row.spacing - CGRectGetWidth(row.bounds) / 2.0, CGRectGetMidY(top));
+    CGAffineTransform move = CGAffineTransformMakeTranslation(target.x - row.center.x, target.y - row.center.y);
+    if (!CGAffineTransformEqualToTransform(row.transform, move)) row.transform = move;
+    if ([overlay.subviews indexOfObject:row] < [overlay.subviews indexOfObject:topRow]) [overlay insertSubview:row aboveSubview:topRow];
+    group = CGRectUnion(group, row.frame);
     UIView *capsule = objc_getAssociatedObject(settings, PGGroupKey);
     if (capsule == nil) {
         capsule = PGMakeGlass();
