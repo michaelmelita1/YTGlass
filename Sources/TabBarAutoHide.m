@@ -69,12 +69,19 @@ static BOOL TBHOnShorts(UIView *bar) {
 }
 
 // YTAppView owns the bar's position; hiding through it is what YouTube does on Home.
+// Asked on every scroll step, so the last answer is kept while the bar stays inside it.
 static UIView *TBHAppView(UIView *bar) {
     static Class appViewClass;
+    static __weak UIView *lastBar, *lastAppView;
+    if (bar == lastBar && lastAppView != nil && bar.window == lastAppView.window) return lastAppView;
     if (appViewClass == Nil) appViewClass = NSClassFromString(@"YTAppView");
     if (appViewClass == Nil) return nil;
     for (UIView *view = bar.superview; view != nil; view = view.superview) {
-        if ([view isKindOfClass:appViewClass]) return view;
+        if ([view isKindOfClass:appViewClass]) {
+            lastBar = bar;
+            lastAppView = view;
+            return view;
+        }
     }
     return nil;
 }

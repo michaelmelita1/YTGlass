@@ -9,7 +9,7 @@
 #import "Common.h"
 
 static const void *HSHomeKey = &HSHomeKey;     // feed -> @YES/@NO: Home's feed (decided once)
-static const void *HSSpacersKey = &HSSpacersKey; // layout -> NSArray<NSValue *>: spacer frames, top to bottom
+static const void *HSSpacersKey = &HSSpacersKey; // layout -> HSSpacers
 
 static BOOL HSIsHomeFeed(UIView *list) {
     NSNumber *decided = list ? objc_getAssociatedObject(list, HSHomeKey) : nil;
@@ -21,31 +21,35 @@ static BOOL HSIsHomeFeed(UIView *list) {
     return home;
 }
 
+// The spacer rows of one layout pass: their index paths, and for each (top to bottom) its bottom edge and the
+// height removed up to and including it, so any row's shift is a binary search.
+@interface HSSpacers : NSObject
+@property (nonatomic, strong) NSSet<NSIndexPath *> *paths;
+@property (nonatomic, strong) NSData *bottoms, *removed; // CGFloat arrays
+@property (nonatomic, assign) CGFloat total;
+@end
+
+@implementation HSSpacers
+@end
+
 static IMP OriginalPrepare, OriginalElementsInRect, OriginalItemAttributes, OriginalContentSize;
 
-static CGFloat HSRemovedAbove(NSArray<NSValue *> *spacers, CGFloat y) {
-    CGFloat removed = 0.0;
-    for (NSValue *value in spacers) {
-        CGRect frame = value.CGRectValue;
-        if (CGRectGetMaxY(frame) > y + 0.01) break;
-        removed += CGRectGetHeight(frame);
+static CGFloat HSRemovedAbove(HSSpacers *spacers, CGFloat y) {
+    const CGFloat *bottoms = spacers.bottoms.bytes, *removed = spacers.removed.bytes;
+    NSInteger low = 0, high = (NSInteger)(spacers.bottoms.length / sizeof(CGFloat)) - 1, last = -1;
+    while (low <= high) {
+        NSInteger mid = (low + high) / 2;
+        if (bottoms[mid] <= y + 0.01) { last = mid; low = mid + 1; }
+        else high = mid - 1;
     }
-    return removed;
+    return last >= 0 ? removed[last] : 0.0;
 }
 
-static CGFloat HSRemovedTotal(NSArray<NSValue *> *spacers) {
-    CGFloat removed = 0.0;
-    for (NSValue *value in spacers) removed += CGRectGetHeight(value.CGRectValue);
-    return removed;
-}
-
-static UICollectionViewLayoutAttributes *HSMoved(UICollectionViewLayoutAttributes *attributes, NSArray<NSValue *> *spacers) {
+static UICollectionViewLayoutAttributes *HSMoved(UICollectionViewLayoutAttributes *attributes, HSSpacers *spacers) {
     UICollectionViewLayoutAttributes *moved = [attributes copy];
     CGRect frame = moved.frame;
-    BOOL spacer = NO;
-    for (NSValue *value in spacers) if (CGRectEqualToRect(value.CGRectValue, frame)) spacer = YES;
     frame.origin.y -= HSRemovedAbove(spacers, CGRectGetMinY(frame));
-    if (spacer) {
+    if (attributes.representedElementCategory == UICollectionElementCategoryCell && [spacers.paths containsObject:attributes.indexPath]) {
         frame.size.height = 0.0;
         moved.hidden = YES;
     }
@@ -65,25 +69,41 @@ static void HSPrepare(UICollectionViewLayout *self, SEL _cmd) {
     CGSize content = ((CGSize (*)(id, SEL))OriginalContentSize)(self, @selector(collectionViewContentSize));
     NSArray<UICollectionViewLayoutAttributes *> *all = ((NSArray * (*)(id, SEL, CGRect))OriginalElementsInRect)(
         self, @selector(layoutAttributesForElementsInRect:), CGRectMake(0.0, 0.0, MAX(content.width, 1.0), content.height));
-    NSMutableArray<NSValue *> *spacers = [NSMutableArray array];
+    NSMutableArray<UICollectionViewLayoutAttributes *> *found = [NSMutableArray array];
     for (UICollectionViewLayoutAttributes *attributes in all) {
         if (attributes.representedElementCategory != UICollectionElementCategoryCell) continue;
         CGFloat height = CGRectGetHeight(attributes.frame);
         if (height <= 0.0 || height > 8.5) continue;
         id node = ((id (*)(id, SEL, id))objc_msgSend)(list, nodeSel, attributes.indexPath);
-        if ([node isKindOfClass:spacerClass]) [spacers addObject:[NSValue valueWithCGRect:attributes.frame]];
+        if ([node isKindOfClass:spacerClass]) [found addObject:attributes];
     }
-    [spacers sortUsingComparator:^NSComparisonResult(NSValue *a, NSValue *b) {
-        return [@(CGRectGetMinY(a.CGRectValue)) compare:@(CGRectGetMinY(b.CGRectValue))];
+    if (found.count == 0) return;
+    [found sortUsingComparator:^NSComparisonResult(UICollectionViewLayoutAttributes *a, UICollectionViewLayoutAttributes *b) {
+        return [@(CGRectGetMinY(a.frame)) compare:@(CGRectGetMinY(b.frame))];
     }];
-    if (spacers.count) objc_setAssociatedObject(self, HSSpacersKey, spacers, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    NSMutableData *bottoms = [NSMutableData dataWithLength:found.count * sizeof(CGFloat)];
+    NSMutableData *removed = [NSMutableData dataWithLength:found.count * sizeof(CGFloat)];
+    NSMutableSet<NSIndexPath *> *paths = [NSMutableSet setWithCapacity:found.count];
+    CGFloat total = 0.0;
+    for (NSUInteger i = 0; i < found.count; i++) {
+        total += CGRectGetHeight(found[i].frame);
+        ((CGFloat *)bottoms.mutableBytes)[i] = CGRectGetMaxY(found[i].frame);
+        ((CGFloat *)removed.mutableBytes)[i] = total;
+        [paths addObject:found[i].indexPath];
+    }
+    HSSpacers *spacers = [HSSpacers new];
+    spacers.paths = paths;
+    spacers.bottoms = bottoms;
+    spacers.removed = removed;
+    spacers.total = total;
+    objc_setAssociatedObject(self, HSSpacersKey, spacers, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
 static NSArray *HSElementsInRect(UICollectionViewLayout *self, SEL _cmd, CGRect rect) {
-    NSArray<NSValue *> *spacers = objc_getAssociatedObject(self, HSSpacersKey);
+    HSSpacers *spacers = objc_getAssociatedObject(self, HSSpacersKey);
     if (spacers == nil) return ((NSArray * (*)(id, SEL, CGRect))OriginalElementsInRect)(self, _cmd, rect);
     CGRect wider = rect;
-    wider.size.height += HSRemovedTotal(spacers);
+    wider.size.height += spacers.total;
     NSArray<UICollectionViewLayoutAttributes *> *found = ((NSArray * (*)(id, SEL, CGRect))OriginalElementsInRect)(self, _cmd, wider);
     NSMutableArray *moved = [NSMutableArray arrayWithCapacity:found.count];
     for (UICollectionViewLayoutAttributes *attributes in found) {
@@ -95,14 +115,14 @@ static NSArray *HSElementsInRect(UICollectionViewLayout *self, SEL _cmd, CGRect 
 
 static UICollectionViewLayoutAttributes *HSItemAttributes(UICollectionViewLayout *self, SEL _cmd, NSIndexPath *path) {
     UICollectionViewLayoutAttributes *attributes = ((id (*)(id, SEL, id))OriginalItemAttributes)(self, _cmd, path);
-    NSArray<NSValue *> *spacers = objc_getAssociatedObject(self, HSSpacersKey);
+    HSSpacers *spacers = objc_getAssociatedObject(self, HSSpacersKey);
     return spacers && attributes ? HSMoved(attributes, spacers) : attributes;
 }
 
 static CGSize HSContentSize(UICollectionViewLayout *self, SEL _cmd) {
     CGSize size = ((CGSize (*)(id, SEL))OriginalContentSize)(self, _cmd);
-    NSArray<NSValue *> *spacers = objc_getAssociatedObject(self, HSSpacersKey);
-    if (spacers) size.height = MAX(0.0, size.height - HSRemovedTotal(spacers));
+    HSSpacers *spacers = objc_getAssociatedObject(self, HSSpacersKey);
+    if (spacers) size.height = MAX(0.0, size.height - spacers.total);
     return size;
 }
 

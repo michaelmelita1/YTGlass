@@ -496,13 +496,25 @@ static void THBHookEffectiveBase(void) {
     if (strcmp(type, "d") == 0) TBHHookMethod(cls, @"effectiveBaseTopContentInset", (IMP)THBEffectiveBase, &OriginalEffectiveBase);
 }
 
+static BOOL THBIsMainList(UIView *v, UIWindow *window) {
+    return [v isKindOfClass:UIScrollView.class] && !((UIScrollView *)v).pagingEnabled && !v.hidden && v.alpha > 0.01 &&
+           CGRectGetHeight(v.bounds) > CGRectGetHeight(window.bounds) * 0.4;
+}
+
+// Asked on every layout of the page; the list found last time is reused while it still qualifies.
 static UIScrollView *THBMainList(UIView *root, UIWindow *window) {
+    static NSMapTable<UIView *, UIScrollView *> *found;
+    if (found == nil) found = [NSMapTable weakToWeakObjectsMapTable];
+    UIScrollView *known = [found objectForKey:root];
+    if (known && known.window == window && THBIsMainList(known, window) && [known isDescendantOfView:root]) return known;
     NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:root];
     for (NSUInteger i = 0; i < queue.count && i < 400; i++) {
         UIView *v = queue[i];
+        if (THBIsMainList(v, window)) {
+            [found setObject:(UIScrollView *)v forKey:root];
+            return (UIScrollView *)v;
+        }
         BOOL scroll = [v isKindOfClass:UIScrollView.class];
-        if (scroll && !((UIScrollView *)v).pagingEnabled && !v.hidden && v.alpha > 0.01 &&
-            CGRectGetHeight(v.bounds) > CGRectGetHeight(window.bounds) * 0.4) return (UIScrollView *)v;
         if (!scroll || ((UIScrollView *)v).pagingEnabled) [queue addObjectsFromArray:v.subviews];
     }
     return nil;
@@ -555,6 +567,7 @@ static void THBListLayout(UICollectionView *self, SEL _cmd) {
     if (OriginalListLayout) ((void (*)(id, SEL))OriginalListLayout)(self, _cmd);
     NSNumber *known = objc_getAssociatedObject(self, THBLeadingKey);
     if (known == nil) return; // not Home's feed
+    if (self.contentOffset.y > -self.adjustedContentInset.top + CGRectGetHeight(self.bounds)) return; // top not on screen
     CGFloat measured = THBMeasureLeading(self);
     if (measured >= 0.0 && fabs(known.doubleValue - measured) > 0.5) [THBCombo(self) setNeedsLayout];
 }
