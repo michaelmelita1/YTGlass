@@ -21,7 +21,7 @@ Maintainer: Michael Melita. See README.md for features and file layout.
   No changelog entry, tag or release for debug builds.
 - Only when Michael says to release: set the plain version, add one line to the README changelog,
   commit, tag `vX.Y.Z`, push, and create a GitHub release with `YTGlass.dylib` and the `.deb` attached
-  (never the IPA: when he asks for one, build it as `dist/YTPlus_6.0b2_YTGlass_X.Y.Z.ipa` and hand it to him directly).
+  (never the IPA: when he asks for one, build it straight to `~/Downloads/YTPlus_6.0b2_YTGlass_X.Y.Z.ipa` and never keep a copy in the repo).
 
 ## Build
 
@@ -33,7 +33,7 @@ make clean && make package FINALPACKAGE=1 \
   ADDITIONAL_CFLAGS="-Wunused-const-variable -Wunused-parameter -Wunreachable-code-aggressive -Wunused-function"
 ```
 
-The build must be warning-free. IPA: `bash Scripts/inject-ipa.sh <stock YTPlus_6.0~b2_21.39.4.ipa> dist/YTGlass.dylib out.ipa`
+The build must be warning-free. IPA: `bash Scripts/inject-ipa.sh "stock/YTPlus 6.0b2 21.39.4.ipa" dist/YTGlass.dylib ~/Downloads/YTPlus_6.0b2_YTGlass_X.Y.Z.ipa`
 (the stock IPA is kept in `stock/`, which is gitignored; if it is missing, ask Michael to upload it).
 
 ## Settings
