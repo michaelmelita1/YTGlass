@@ -8,6 +8,9 @@
 // YTPlus puts a second row of buttons (mute, sleep timer, its menu) under the top row's quality label and settings
 // button, in a UIStackView of YTQTMButtons labelled YTL...; that row is moved up beside them (at its own spacing), and
 // the group shares one glass capsule instead of a circle each.
+//
+// At the bottom right, YouQuality's quality label (when placed there) and YouTube's full screen button each have a
+// round glass; while both are shown they share one pill instead.
 
 #import "Common.h"
 
@@ -157,6 +160,88 @@ static CGRect PGGroupYTPlusRow(UIView *overlay, Class buttonClass) {
     return group;
 }
 
+#pragma mark - Bottom pill (quality label + full screen)
+
+static const void *PGPillKey = &PGPillKey;       // full screen button view -> the pill
+static const void *PGHiddenGlassKey = &PGHiddenGlassKey; // glass view -> @YES while we hide it for the pill
+
+static UIView *PGFindClass(UIView *view, Class cls, int depth) {
+    if ([view isKindOfClass:cls]) return view;
+    if (depth <= 0) return nil;
+    for (UIView *subview in view.subviews) {
+        UIView *found = PGFindClass(subview, cls, depth - 1);
+        if (found) return found;
+    }
+    return nil;
+}
+
+// The round glass views directly inside a button (YTFrostedGlassView), hidden while the pill stands in for them.
+static void PGHideRoundGlass(UIView *button, BOOL hide) {
+    static Class glassClass;
+    if (glassClass == Nil) glassClass = NSClassFromString(@"YTFrostedGlassView");
+    for (UIView *subview in button.subviews) {
+        if (![subview isKindOfClass:glassClass] || objc_getAssociatedObject(subview, PGPillKey)) continue;
+        if (hide && !subview.hidden) {
+            subview.hidden = YES;
+            objc_setAssociatedObject(subview, PGHiddenGlassKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        } else if (!hide && [objc_getAssociatedObject(subview, PGHiddenGlassKey) boolValue]) {
+            subview.hidden = NO;
+            objc_setAssociatedObject(subview, PGHiddenGlassKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+    }
+}
+
+static IMP OriginalBarContainerLayout;
+
+static void PGBarContainerLayout(UIView *self, SEL _cmd) {
+    if (OriginalBarContainerLayout) ((void (*)(id, SEL))OriginalBarContainerLayout)(self, _cmd);
+    static Class fullscreenClass, buttonClass;
+    if (fullscreenClass == Nil) fullscreenClass = NSClassFromString(@"YTEnterExitFullscreenButtonView");
+    if (buttonClass == Nil) buttonClass = NSClassFromString(@"YTQTMButton");
+    UIView *fullscreen = fullscreenClass ? PGFindClass(self, fullscreenClass, 3) : nil;
+    if (fullscreen == nil || buttonClass == Nil) return;
+    CGRect fullFrame = [fullscreen convertRect:fullscreen.bounds toView:self];
+    // The quality label: a button of the bar on the full screen button's line, just left of it.
+    UIView *quality = nil;
+    for (UIView *subview in self.subviews) {
+        if (![subview isKindOfClass:buttonClass] || subview.hidden || subview.alpha < 0.01) continue;
+        CGRect frame = subview.frame;
+        if (fabs(CGRectGetMidY(frame) - CGRectGetMidY(fullFrame)) < 4.0 && CGRectGetMaxX(frame) <= CGRectGetMinX(fullFrame) &&
+            CGRectGetMinX(fullFrame) - CGRectGetMaxX(frame) < 24.0) quality = subview;
+    }
+    UIView *pill = objc_getAssociatedObject(fullscreen, PGPillKey);
+    UIView *fullscreenButton = PGFindIdentifier(fullscreen, @"id.player.watch.fullscreen.button", 2);
+    if (quality == nil) {
+        pill.hidden = YES;
+        PGHideRoundGlass(fullscreen, NO);
+        if (fullscreenButton) PGHideRoundGlass(fullscreenButton, NO);
+        return;
+    }
+    if (pill == nil) {
+        pill = PGMakeGlass();
+        if (pill == nil) return;
+        objc_setAssociatedObject(pill, PGPillKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(fullscreen, PGPillKey, pill, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    PGHideRoundGlass(quality, YES);
+    PGHideRoundGlass(fullscreen, YES);
+    if (fullscreenButton) PGHideRoundGlass(fullscreenButton, YES);
+    CGRect group = CGRectUnion(quality.frame, fullFrame);
+    CGFloat height = CGRectGetHeight(fullFrame);
+    group = CGRectMake(CGRectGetMinX(group), CGRectGetMidY(fullFrame) - height / 2.0, CGRectGetWidth(group), height);
+    CGRect frame = [self convertRect:group toView:fullscreen];
+    if (!CGRectEqualToRect(pill.frame, frame)) {
+        pill.frame = frame;
+        SEL radiusSel = NSSelectorFromString(@"setCornerRadius:");
+        if ([pill respondsToSelector:radiusSel]) ((void (*)(id, SEL, CGFloat))objc_msgSend)(pill, radiusSel, height / 2.0);
+        else { pill.layer.cornerRadius = height / 2.0; pill.clipsToBounds = YES; }
+    }
+    pill.hidden = NO;
+    if (pill.superview != fullscreen) [fullscreen insertSubview:pill atIndex:0];
+    else if (fullscreen.subviews.firstObject != pill) [fullscreen sendSubviewToBack:pill];
+    if (self.subviews.lastObject != quality) [self bringSubviewToFront:quality]; // the label above the pill
+}
+
 static IMP OriginalOverlayLayout;
 
 static void PGOverlayLayout(UIView *self, SEL _cmd) {
@@ -184,5 +269,6 @@ __attribute__((constructor)) static void PGInit(void) {
         PGHookTyped(config, @"enableLiquidGlassEffect", "B", (IMP)PGEnableLiquidGlass);
         PGHookTyped(config, @"liquidGlassEffectStyle", "q", (IMP)PGLiquidGlassStyle);
         TBHHookMethod(NSClassFromString(@"YTMainAppControlsOverlayView"), @"layoutSubviews", (IMP)PGOverlayLayout, &OriginalOverlayLayout);
+        TBHHookMethod(NSClassFromString(@"YTInlinePlayerBarContainerView"), @"layoutSubviews", (IMP)PGBarContainerLayout, &OriginalBarContainerLayout);
     }
 }
