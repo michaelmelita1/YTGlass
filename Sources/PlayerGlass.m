@@ -108,11 +108,12 @@ static UIStackView *PGYTPlusRow(UIView *overlay, Class buttonClass) {
     return nil;
 }
 
-static const void *PGGroupKey = &PGGroupKey; // top row -> the group's glass capsule
+static const void *PGGroupKey = &PGGroupKey; // settings button -> the group's glass capsule
 
 // Moved with a transform: YTPlus keeps laying the row out where it was, and the move is worked out again each time.
-// The capsule lives in the top row (behind its buttons, fading with it) and reaches left under YTPlus's row, which
-// is kept above the top row. Returns the capsule's frame in the overlay, or CGRectNull.
+// YouTube fades each button on its own, so the capsule lives in the settings button (fading with it) and reaches
+// left under the quality label and YTPlus's row, which are kept above it. Returns the capsule's frame in the overlay,
+// or CGRectNull.
 static CGRect PGGroupYTPlusRow(UIView *overlay, Class buttonClass) {
     UIStackView *row = PGYTPlusRow(overlay, buttonClass);
     UIView *settings = PGFindIdentifier(overlay, @"id.player.overflow.button", 3);
@@ -124,25 +125,30 @@ static CGRect PGGroupYTPlusRow(UIView *overlay, Class buttonClass) {
     if (!CGAffineTransformEqualToTransform(row.transform, move)) row.transform = move;
     if ([overlay.subviews indexOfObject:row] < [overlay.subviews indexOfObject:topRow]) [overlay insertSubview:row aboveSubview:topRow];
 
-    UIView *capsule = objc_getAssociatedObject(topRow, PGGroupKey);
+    for (UIView *sibling in topRow.subviews) {
+        if (sibling != settings && [sibling isKindOfClass:buttonClass] && [topRow.subviews indexOfObject:sibling] < [topRow.subviews indexOfObject:settings]) {
+            [topRow bringSubviewToFront:sibling]; // the quality label above the capsule
+        }
+    }
+    UIView *capsule = objc_getAssociatedObject(settings, PGGroupKey);
     if (capsule == nil) {
         capsule = PGMakeGlass();
         if (capsule == nil) return CGRectNull;
-        objc_setAssociatedObject(topRow, PGGroupKey, capsule, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(settings, PGGroupKey, capsule, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     CGRect group = CGRectUnion(row.frame, top);
     CGFloat height = MIN(PGTopGlassDiameter, CGRectGetHeight(group));
     group = CGRectMake(CGRectGetMinX(group) - PGGroupPadding, CGRectGetMidY(top) - height / 2.0,
                        CGRectGetWidth(group) + PGGroupPadding * 2.0, height);
-    CGRect frame = [overlay convertRect:group toView:topRow];
+    CGRect frame = [overlay convertRect:group toView:settings];
     if (!CGRectEqualToRect(capsule.frame, frame)) {
         capsule.frame = frame;
         SEL radiusSel = NSSelectorFromString(@"setCornerRadius:");
         if ([capsule respondsToSelector:radiusSel]) ((void (*)(id, SEL, CGFloat))objc_msgSend)(capsule, radiusSel, height / 2.0);
         else { capsule.layer.cornerRadius = height / 2.0; capsule.clipsToBounds = YES; }
     }
-    if (capsule.superview != topRow) [topRow insertSubview:capsule atIndex:0];
-    else if (topRow.subviews.firstObject != capsule) [topRow sendSubviewToBack:capsule];
+    if (capsule.superview != settings) [settings insertSubview:capsule atIndex:0];
+    else if (settings.subviews.firstObject != capsule) [settings sendSubviewToBack:capsule];
     return group;
 }
 
