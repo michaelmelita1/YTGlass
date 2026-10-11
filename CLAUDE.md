@@ -34,7 +34,7 @@ make clean && make package FINALPACKAGE=1 \
 ```
 
 The build must be warning-free. IPA: `bash Scripts/inject-ipa.sh <stock YTPlus_6.0~b2_21.39.4.ipa> dist/YTGlass.dylib out.ipa`
-(the stock IPA is not in the repo; ask Michael to upload it).
+(the stock IPA is kept in `stock/`, which is gitignored; if it is missing, ask Michael to upload it).
 
 ## Settings
 

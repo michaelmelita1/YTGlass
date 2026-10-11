@@ -3,3 +3,4 @@ packages/
 dist/
 .notes/
 .DS_Store
+stock/
