@@ -71,9 +71,11 @@ switch at launch, so changes apply after a restart (the page's bottom row says s
   Top-row player buttons get a 40pt YTFrostedGlassView circle (larger sizes were clipped; reverted).
 - YTPlus's tab bar is a system `UITabBar` inside `YTPivotBarView`; the separate search button narrows it,
   the integrated mode appends a UITabBarItem and wraps the delegate's `tabBar:didSelectItem:`.
-
-## Planned
-
-- Player: move the second-row buttons at the top right of the player (all added by YTPlus: the "720p 60" quality
-  label, the speaker and the sparkle buttons) into the top row, and give them the same Liquid Glass circle as the
-  other top-row buttons.
+- Player top right: YTPlus's second row (mute, sleep timer, menu) is a UIStackView of YTQTMButtons labelled `YTL...`
+  in `YTMainAppControlsOverlayView`; the top row is a small UIView holding YouQuality's quality label and the settings
+  button (`id.player.overflow.button`). YouTube fades each button on its own (not their containers), so shared glass
+  lives inside the settings button.
+- Player bottom right: `YTInlinePlayerBarContainerView` holds `YTWatchPlayerControlsRightIcons` >
+  `YTEnterExitFullscreenButtonView` and (portrait) YouQuality's button directly, or (full screen) in a small wrapper
+  elsewhere. YouTube/YouQuality keep re-setting those frames, so moving one with a transform flickers; `PlayerGlass.m`
+  shifts it through a per-instance subclass of its frame/center accessors instead.
