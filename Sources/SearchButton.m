@@ -245,7 +245,6 @@ static void TBSBarLayout(UIView *self, SEL _cmd) {
 
 static IMP OriginalBarHitTest;
 
-
 // Make sure taps on the circle reach it, whatever YouTube or YTPlus do with touches on the bar.
 static UIView *TBSBarHitTest(UIView *self, SEL _cmd, CGPoint point, UIEvent *event) {
     UIButton *button = objc_getAssociatedObject(self, TBSButtonKey);
@@ -389,12 +388,9 @@ static void TBSInlineBarLayout(UIView *self, SEL _cmd) {
 // YTPlus's translucent tab bar uses YouTube's frosted tab bar mode, where pages run underneath the bar.
 // Search results opt out of it (-[YTSearchResultsViewController optOutOfFrostedPivotBar]), so YouTube stopped
 // that page at the bar's top edge and the app's white background showed as a strip behind the glass.
-static IMP OriginalSearchOptOut;
-
 static BOOL TBSSearchOptOut(__unused id self, __unused SEL _cmd) {
     return NO;
 }
-
 
 __attribute__((constructor)) static void TBSInit(void) {
     @autoreleasepool {
@@ -402,7 +398,7 @@ __attribute__((constructor)) static void TBSInit(void) {
         Method optOut = results ? class_getInstanceMethod(results, NSSelectorFromString(@"optOutOfFrostedPivotBar")) : NULL;
         char type[8] = { 0 };
         if (optOut) method_getReturnType(optOut, type, sizeof(type));
-        if (type[0] == 'B' || type[0] == 'c') TBHHookMethod(results, @"optOutOfFrostedPivotBar", (IMP)TBSSearchOptOut, &OriginalSearchOptOut);
+        if (type[0] == 'B' || type[0] == 'c') TBHHookMethod(results, @"optOutOfFrostedPivotBar", (IMP)TBSSearchOptOut, NULL);
         NSInteger mode = YTGSearchMode();
         Class bar = NSClassFromString(@"YTPivotBarView");
         if (bar == Nil || mode == YTGSearchOff) return;

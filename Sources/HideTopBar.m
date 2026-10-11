@@ -23,23 +23,21 @@ static id THBCall(id target, NSString *selectorName) {
     return ((id (*)(id, SEL))objc_msgSend)(target, selector);
 }
 
+// YES when page is (inside) the first screen of nav.
+static BOOL THBIsRoot(UIViewController *page, UINavigationController *nav) {
+    UIViewController *root = nav.viewControllers.firstObject;
+    for (UIViewController *v = page; v != nil; v = v.parentViewController) if (v == root) return YES;
+    return NO;
+}
+
 // The selected tab's identifier when this page is that tab's first screen, else nil.
 static NSString *THBTabOfRootPage(UIViewController *page) {
     NSString *tab = TBHSelectedTabIdentifier();
     if (tab == nil) return nil;
     UINavigationController *nav = page.navigationController;
-    if (nav == nil) return tab;
-    UIViewController *root = nav.viewControllers.firstObject;
-    for (UIViewController *v = page; v != nil; v = v.parentViewController) if (v == root) return tab;
-    return nil;
+    return nav == nil || THBIsRoot(page, nav) ? tab : nil;
 }
 
-// Only a tab's first screen (Home, Subscriptions, History, ...), never search's own screen or the You tab's
-// first screen. Pages opened on top (a channel, a playlist, ...) keep YouTube's bar, so they keep their back
-// button and their own header. The tab check is decided when the page first appears (the You page is created
-// when its tab is opened); whether something is open on top is checked every time, since a tab's pages can
-// share one bar. Search results reuse the page's bar, which is shown while it holds the search box
-// (THBShowsSearchBox).
 static UINavigationController *THBNavigation(UIViewController *page, BOOL *barOwnedByNavigation) {
     *barOwnedByNavigation = NO;
     if (page.navigationController) return page.navigationController;
@@ -49,13 +47,19 @@ static UINavigationController *THBNavigation(UIViewController *page, BOOL *barOw
     return nil;
 }
 
-static UIViewController *THBPage(UIView *header) {
-    for (UIResponder *r = header.nextResponder; r != nil; r = r.nextResponder) {
+static UIViewController *THBPage(UIView *view) {
+    for (UIResponder *r = view.nextResponder; r != nil; r = r.nextResponder) {
         if ([r isKindOfClass:UIViewController.class]) return (UIViewController *)r;
     }
     return nil;
 }
 
+// Only a tab's first screen (Home, Subscriptions, History, ...), never search's own screen or the You tab's
+// first screen. Pages opened on top (a channel, a playlist, ...) keep YouTube's bar, so they keep their back
+// button and their own header. The tab check is decided when the page first appears (the You page is created
+// when its tab is opened); whether something is open on top is checked every time, since a tab's pages can
+// share one bar. Search results reuse the page's bar, which is shown while it holds the search box
+// (THBShowsSearchBox).
 static BOOL THBAllowed(UIView *header) {
     if (header.window == nil) return NO;
     UIViewController *page = THBPage(header);
@@ -70,12 +74,7 @@ static BOOL THBAllowed(UIView *header) {
     for (UIViewController *v = page; v != nil && allowed; v = v.parentViewController) {
         if (searchClass && [v isKindOfClass:searchClass]) allowed = NO;
     }
-    if (allowed && nav && !shared) { // the page's own bar: only on the tab's first screen
-        UIViewController *root = nav.viewControllers.firstObject;
-        BOOL isRoot = NO;
-        for (UIViewController *v = page; v != nil && !isRoot; v = v.parentViewController) isRoot = (v == root);
-        allowed = isRoot;
-    }
+    if (allowed && nav && !shared) allowed = THBIsRoot(page, nav); // the page's own bar: only on the tab's first screen
     NSString *tab = allowed ? TBHSelectedTabIdentifier() : nil;
     if ([tab isEqualToString:@"FElibrary"] || [tab isEqualToString:@"FEyou"]) allowed = NO;
     objc_setAssociatedObject(header, THBDecisionKey, @(allowed), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -219,7 +218,7 @@ static CGImageRef THBGradientImage(NSInteger length, BOOL smooth) {
     id cached = cache[key];
     if (cached) return (__bridge CGImageRef)cached;
     CGColorSpaceRef space = CGColorSpaceCreateDeviceGray();
-    CGContextRef context = CGBitmapContextCreate(NULL, 1, length, 8, 2, space, kCGImageAlphaPremultipliedLast);
+    CGContextRef context = CGBitmapContextCreate(NULL, 1, length, 8, 2, space, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
     CGColorSpaceRelease(space);
     if (context == NULL) return NULL;
     uint8_t *pixels = CGBitmapContextGetData(context);
@@ -513,10 +512,7 @@ static NSString *THBTitleText(UIView *combo) {
     NSString *text = objc_getAssociatedObject(combo, THBTitleTextKey);
     if (text) return text.length ? text : nil;
     if (combo.window == nil) return nil;
-    UIViewController *page = nil;
-    for (UIResponder *r = combo.nextResponder; r != nil; r = r.nextResponder) {
-        if ([r isKindOfClass:UIViewController.class]) { page = (UIViewController *)r; break; }
-    }
+    UIViewController *page = THBPage(combo);
     NSString *tab = page ? THBTabOfRootPage(page) : nil;
     // The tab's own label, so the title follows the app's language; English if YouTube doesn't give one.
     NSDictionary *titles = @{ @"FEwhat_to_watch": @"Home", @"FEsubscriptions": @"Subscriptions", @"FEhistory": @"History" };

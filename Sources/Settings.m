@@ -21,9 +21,6 @@ YTGSearchStyle YTGSearchMode(void) {
         NSInteger mode = [value integerValue];
         if (mode >= YTGSearchOff && mode <= YTGSearchInTabBar) return (YTGSearchStyle)mode;
     }
-    // 2.8.0 had an on/off switch.
-    id old = [NSUserDefaults.standardUserDefaults objectForKey:@"YTGlass_SearchButton"];
-    if ([old respondsToSelector:@selector(boolValue)] && ![old boolValue]) return YTGSearchOff;
     return YTGSearchSeparate;
 }
 
