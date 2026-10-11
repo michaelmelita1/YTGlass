@@ -34,25 +34,50 @@ static NSString *THBTabOfRootPage(UIViewController *page) {
     return nil;
 }
 
-// Every page except search's own screen and the You tab's first screen. Decided when the page first
-// appears (the You page is created when its tab is opened). Search results reuse the page's bar, which
-// is shown while it holds the search box (THBShowsSearchBox).
+// Only a tab's first screen (Home, Subscriptions, History, ...), never search's own screen or the You tab's
+// first screen. Pages opened on top (a channel, a playlist, ...) keep YouTube's bar, so they keep their back
+// button and their own header. The tab check is decided when the page first appears (the You page is created
+// when its tab is opened); whether something is open on top is checked every time, since a tab's pages can
+// share one bar. Search results reuse the page's bar, which is shown while it holds the search box
+// (THBShowsSearchBox).
+static UINavigationController *THBNavigation(UIViewController *page, BOOL *barOwnedByNavigation) {
+    *barOwnedByNavigation = NO;
+    if (page.navigationController) return page.navigationController;
+    for (UIViewController *v = page.parentViewController; v != nil; v = v.parentViewController) {
+        if ([v isKindOfClass:UINavigationController.class]) { *barOwnedByNavigation = YES; return (UINavigationController *)v; }
+    }
+    return nil;
+}
+
+static UIViewController *THBPage(UIView *header) {
+    for (UIResponder *r = header.nextResponder; r != nil; r = r.nextResponder) {
+        if ([r isKindOfClass:UIViewController.class]) return (UIViewController *)r;
+    }
+    return nil;
+}
+
 static BOOL THBAllowed(UIView *header) {
     if (header.window == nil) return NO;
+    UIViewController *page = THBPage(header);
+    BOOL shared = NO;
+    UINavigationController *nav = page ? THBNavigation(page, &shared) : nil;
+    if (shared && nav.viewControllers.count > 1) return NO; // a page is open on top of the tab's first screen
     NSNumber *decided = objc_getAssociatedObject(header, THBDecisionKey);
     if (decided) return decided.boolValue;
     static Class searchClass;
     if (searchClass == Nil) searchClass = NSClassFromString(@"YTSearchViewController");
-    BOOL allowed = YES;
-    for (UIResponder *r = header.nextResponder; r != nil; r = r.nextResponder) {
-        if (![r isKindOfClass:UIViewController.class]) continue;
-        for (UIViewController *v = (UIViewController *)r; v != nil; v = v.parentViewController) {
-            if (searchClass && [v isKindOfClass:searchClass]) { allowed = NO; break; }
-        }
-        NSString *tab = allowed ? THBTabOfRootPage((UIViewController *)r) : nil;
-        if ([tab isEqualToString:@"FElibrary"] || [tab isEqualToString:@"FEyou"]) allowed = NO;
-        break;
+    BOOL allowed = page != nil;
+    for (UIViewController *v = page; v != nil && allowed; v = v.parentViewController) {
+        if (searchClass && [v isKindOfClass:searchClass]) allowed = NO;
     }
+    if (allowed && nav && !shared) { // the page's own bar: only on the tab's first screen
+        UIViewController *root = nav.viewControllers.firstObject;
+        BOOL isRoot = NO;
+        for (UIViewController *v = page; v != nil && !isRoot; v = v.parentViewController) isRoot = (v == root);
+        allowed = isRoot;
+    }
+    NSString *tab = allowed ? TBHSelectedTabIdentifier() : nil;
+    if ([tab isEqualToString:@"FElibrary"] || [tab isEqualToString:@"FEyou"]) allowed = NO;
     objc_setAssociatedObject(header, THBDecisionKey, @(allowed), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return allowed;
 }
