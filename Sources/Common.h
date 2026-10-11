@@ -27,6 +27,8 @@ BOOL YTGFeatureEnabled(NSString *key);
 typedef NS_ENUM(NSInteger, YTGSearchStyle) { YTGSearchOff = 0, YTGSearchSeparate = 1, YTGSearchInTabBar = 2 };
 YTGSearchStyle YTGSearchMode(void);
 
+// TabBarAutoHide.m: YouTube's tab bar (YTPivotBarView) on screen, or nil.
+UIView *TBHFindBar(void);
 // TabBarAutoHide.m: the selected tab's identifier (e.g. FEwhat_to_watch, FElibrary), or nil.
 NSString *TBHSelectedTabIdentifier(void);
 // TabBarAutoHide.m: the selected tab's label as YouTube shows it (in the app's language), or nil.

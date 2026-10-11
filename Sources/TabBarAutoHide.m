@@ -256,7 +256,7 @@ __attribute__((constructor)) static void TBHInit(void) {
     }
 }
 
-static UIView *TBHFindBar(void) {
+UIView *TBHFindBar(void) {
     UIView *bar = TBHBar;
     if (bar) return bar;
     Class cls = NSClassFromString(@"YTPivotBarView");
