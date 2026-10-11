@@ -71,3 +71,9 @@ switch at launch, so changes apply after a restart (the page's bottom row says s
   Top-row player buttons get a 40pt YTFrostedGlassView circle (larger sizes were clipped; reverted).
 - YTPlus's tab bar is a system `UITabBar` inside `YTPivotBarView`; the separate search button narrows it,
   the integrated mode appends a UITabBarItem and wraps the delegate's `tabBar:didSelectItem:`.
+
+## Planned
+
+- Player: move the second-row buttons at the top right of the player (YouQuality's "720p 60" label, the speaker
+  and the sparkle buttons, likely from YTVideoOverlay) into the top row, and give them the same Liquid Glass
+  circle as the other top-row buttons.
