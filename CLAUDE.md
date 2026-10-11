@@ -12,6 +12,8 @@ Maintainer: Michael Melita. See README.md for features and file layout.
 - When stuck on a bug, build a temporary on-screen diagnostic (a yellow label with live values and a log
   of changes with YouTube caller offsets), ask for a screen recording, then remove it again.
 - For settings wording and new options, ask him (he edits the text himself).
+- Workarounds for YTPlus bugs all go in `Sources/YTPlusSettingsFix.m` (behind the YTPlus Settings Fix switch,
+  `YTGlass_YTPlusSettingsFix`), kept apart from YTGlass's own features so they can be dropped when YTPlus fixes them.
 
 ## Versioning
 
