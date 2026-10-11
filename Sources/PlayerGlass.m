@@ -148,7 +148,10 @@ static CGRect PGGroupYTPlusRow(UIView *overlay, Class buttonClass) {
     // The quality label left of it, above the capsule.
     UIView *quality = nil;
     for (UIView *sibling in topRow.subviews) {
-        if (sibling != settings && [sibling isKindOfClass:buttonClass]) quality = sibling;
+        if (sibling == settings || ![sibling isKindOfClass:buttonClass] || sibling.hidden || sibling.alpha < 0.01) continue;
+        for (UIView *inner in sibling.subviews) {
+            if (!inner.hidden && inner.alpha >= 0.01 && CGRectGetWidth(inner.bounds) > 0.0) quality = sibling; // something drawn
+        }
     }
     CGRect group = CGRectUnion(row.frame, settingsFrame);
     if (quality) {
