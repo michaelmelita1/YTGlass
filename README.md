@@ -14,6 +14,8 @@ Liquid Glass tweaks for YouTube builds with **YTPlus 6.0** and its Liquid Glass 
 - **Large titles**: Home, Subscriptions and History get an Apple Music-style title that scrolls with the page.
   Subscriptions' avatars/chips and History's title/search box/chips are removed.
 - **Liquid Glass player controls**: YouTube's own Liquid Glass (clear style) behind play/pause and previous/next, and a 40pt glass circle behind each top-row player button (captions, settings, cast, and buttons other tweaks add there).
+  YTPlus's second row of player buttons moves up beside settings, the group sharing one glass capsule; at the
+  bottom, YouQuality's label and the full screen button share one pill.
 - **No slide-up animation** when switching tabs: the new tab's page appears straight away.
 - **Even spacing on Home**: Home's blank spacer rows (YouTube's own, and the ones YTPlus's ad blocking leaves
   behind) are collapsed, so its videos are spaced like Subscriptions'.
@@ -62,6 +64,7 @@ Pure Objective-C runtime swizzling, no CydiaSubstrate/ElleKit dependency. See `L
 
 ## Changelog
 
+- **0.0.6**: YTPlus's player buttons (mute, sleep timer, menu) move into the top row and share one glass capsule with settings; the quality label and full screen button share one pill at the bottom; faster tab bar handling (Shorts checks skipped when there's no Shorts tab).
 - **0.0.5**: no slide-up animation when switching tabs (YT Slide Up Animation switch); Home's videos spaced like Subscriptions'; YTPlus Settings Fix renamed YTPlus Fixes; smoother scrolling.
 - **0.0.4**: a Settings item in YTPlus's tab bar menu opens YouTube's settings from any tab; new YTPlus Settings Fix switch makes the settings close button tappable again with YTPlus's Liquid Glass.
 - **0.0.3**: the YTGlass settings page shows the installed version at the bottom; code cleanup.
