@@ -174,6 +174,78 @@ static const void *PGMovedKey = &PGMovedKey;      // full screen button view -> 
 @implementation PGWeak
 @end
 
+// Shifting a view YouTube keeps positioning: a transform fights YouTube's frame updates (the label flickered between
+// both places), so the view's class is swapped for a subclass whose setFrame:/setCenter: add the shift and whose
+// frame/center getters take it off again (YouTube reads and writes its own positions), the way KVO subclasses an
+// instance. The shift is stored on the view; 0 puts it back where YouTube wants it.
+static const void *PGShiftKey = &PGShiftKey; // view -> NSNumber: horizontal shift
+
+static CGFloat PGShiftOf(UIView *view) {
+    return [objc_getAssociatedObject(view, PGShiftKey) doubleValue];
+}
+
+static int PGShifting; // inside a shifted setter: UIKit's setFrame: may go through setCenter:, add the shift once
+
+static void PGShiftedSetFrame(UIView *self, SEL _cmd, CGRect frame) {
+    if (PGShifting == 0) frame.origin.x += PGShiftOf(self);
+    PGShifting++;
+    ((void (*)(id, SEL, CGRect))class_getMethodImplementation(class_getSuperclass(object_getClass(self)), _cmd))(self, _cmd, frame);
+    PGShifting--;
+}
+
+static void PGShiftedSetCenter(UIView *self, SEL _cmd, CGPoint center) {
+    if (PGShifting == 0) center.x += PGShiftOf(self);
+    PGShifting++;
+    ((void (*)(id, SEL, CGPoint))class_getMethodImplementation(class_getSuperclass(object_getClass(self)), _cmd))(self, _cmd, center);
+    PGShifting--;
+}
+
+static CGRect PGShiftedFrame(UIView *self, SEL _cmd) {
+    CGRect frame = ((CGRect (*)(id, SEL))class_getMethodImplementation(class_getSuperclass(object_getClass(self)), _cmd))(self, _cmd);
+    frame.origin.x -= PGShiftOf(self);
+    return frame;
+}
+
+static CGPoint PGShiftedCenter(UIView *self, SEL _cmd) {
+    CGPoint center = ((CGPoint (*)(id, SEL))class_getMethodImplementation(class_getSuperclass(object_getClass(self)), _cmd))(self, _cmd);
+    center.x -= PGShiftOf(self);
+    return center;
+}
+
+static Class PGShiftedClassGetter(id self, __unused SEL _cmd) {
+    return class_getSuperclass(object_getClass(self));
+}
+
+static BOOL PGMakeShiftable(UIView *view) {
+    Class cls = object_getClass(view);
+    NSString *name = NSStringFromClass(cls);
+    if ([name hasPrefix:@"PGShifted_"]) return YES;
+    if ([name hasPrefix:@"NSKVONotifying_"]) return NO; // already subclassed by KVO
+    NSString *shiftedName = [@"PGShifted_" stringByAppendingString:name];
+    Class shifted = NSClassFromString(shiftedName);
+    if (shifted == Nil) {
+        shifted = objc_allocateClassPair(cls, shiftedName.UTF8String, 0);
+        if (shifted == Nil) return NO;
+        class_addMethod(shifted, @selector(setFrame:), (IMP)PGShiftedSetFrame, method_getTypeEncoding(class_getInstanceMethod(cls, @selector(setFrame:))));
+        class_addMethod(shifted, @selector(setCenter:), (IMP)PGShiftedSetCenter, method_getTypeEncoding(class_getInstanceMethod(cls, @selector(setCenter:))));
+        class_addMethod(shifted, @selector(frame), (IMP)PGShiftedFrame, method_getTypeEncoding(class_getInstanceMethod(cls, @selector(frame))));
+        class_addMethod(shifted, @selector(center), (IMP)PGShiftedCenter, method_getTypeEncoding(class_getInstanceMethod(cls, @selector(center))));
+        class_addMethod(shifted, @selector(class), (IMP)PGShiftedClassGetter, "#16@0:8");
+        objc_registerClassPair(shifted);
+    }
+    object_setClass(view, shifted);
+    return YES;
+}
+
+static void PGSetShift(UIView *view, CGFloat shift) {
+    CGFloat old = PGShiftOf(view);
+    if (fabs(old - shift) < 0.25) return;
+    if (shift != 0.0 && !PGMakeShiftable(view)) return;
+    CGPoint center = view.center; // where YouTube put it
+    objc_setAssociatedObject(view, PGShiftKey, shift != 0.0 ? @(shift) : nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    view.center = center; // the shifted setter adds the new shift
+}
+
 // What a button draws (its label or icon), in view's coordinates; the button's own frame if it draws nothing.
 static CGRect PGDrawnFrame(UIView *button, UIView *view) {
     static Class glassClass;
@@ -244,14 +316,14 @@ static void PGBarContainerLayout(UIView *self, SEL _cmd) {
         UIView *wrapper = view;
         while (wrapper.superview && wrapper.superview != root && CGRectGetWidth(wrapper.superview.bounds) < 60.0) wrapper = wrapper.superview;
         CGRect frame = [view convertRect:view.bounds toView:self];
-        frame = CGRectOffset(frame, -wrapper.transform.tx, -wrapper.transform.ty); // where YouTube put it
+        frame = CGRectOffset(frame, -PGShiftOf(wrapper), 0.0); // where YouTube put it
         if (fabs(CGRectGetMidY(frame) - CGRectGetMidY(fullFrame)) < 4.0 && CGRectGetMaxX(frame) <= CGRectGetMinX(fullFrame) + 0.5 &&
             CGRectGetMinX(fullFrame) - CGRectGetMaxX(frame) < 24.0) {
             quality = view;
             holder = wrapper;
         }
     }
-    if (moved.view && moved.view != holder) moved.view.transform = CGAffineTransformIdentity;
+    if (moved.view && moved.view != holder) PGSetShift(moved.view, 0.0);
     if (moved == nil) {
         moved = [PGWeak new];
         objc_setAssociatedObject(fullscreen, PGMovedKey, moved, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -274,9 +346,8 @@ static void PGBarContainerLayout(UIView *self, SEL _cmd) {
     UIView *icon = fullscreenButton ?: fullscreen;
     // The label moved towards the icon (within the bar, so it stays tappable).
     CGRect iconFrame = PGDrawnFrame(icon, self), text = PGDrawnFrame(quality, self);
-    CGFloat shift = holder.transform.tx + (CGRectGetMinX(iconFrame) - PGPillGap - CGRectGetMaxX(text));
-    CGAffineTransform move = CGAffineTransformMakeTranslation(MAX(0.0, shift), 0.0);
-    if (!CGAffineTransformEqualToTransform(holder.transform, move)) holder.transform = move;
+    CGFloat shift = PGShiftOf(holder) + (CGRectGetMinX(iconFrame) - PGPillGap - CGRectGetMaxX(text));
+    PGSetShift(holder, MAX(0.0, shift));
     PGHideRoundGlass(quality, YES);
     PGHideRoundGlass(fullscreen, YES);
     if (fullscreenButton) PGHideRoundGlass(fullscreenButton, YES);
