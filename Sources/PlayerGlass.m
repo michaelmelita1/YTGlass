@@ -6,14 +6,13 @@
 // and give the top-row buttons (captions, settings, cast, ...) the same glass circles.
 //
 // YTPlus puts a second row of buttons (mute, sleep timer, its menu) under the top row's quality label and settings
-// button, in a UIStackView of YTQTMButtons labelled YTL...; that row is moved up beside them, and the whole group
-// (YTPlus's buttons, the quality label and settings) shares one glass capsule instead of a circle each.
+// button, in a UIStackView of YTQTMButtons labelled YTL...; that row is moved up between them (quality label, YTPlus's
+// buttons, settings, at the row's own spacing), and the group shares one glass capsule instead of a circle each.
 
 #import "Common.h"
 
 static NSInteger const PGGlassStyle = 2;       // YouTube's liquidGlassEffectStyle: 1 regular, 2 clear
 static CGFloat const PGTopGlassDiameter = 40.0; // glass circle behind each top-row button
-static CGFloat const PGRowGap = 10.0;           // between YTPlus's row and the top row
 static CGFloat const PGGroupPadding = 8.0;      // capsule beyond the group's outer buttons
 
 // Hooks only when the method returns the expected type (these are YouTube flags; a changed type means a
@@ -120,15 +119,27 @@ static CGRect PGGroupYTPlusRow(UIView *overlay, Class buttonClass) {
     UIView *topRow = settings.superview;
     if (row == nil || topRow == nil || row.superview != overlay || topRow.superview != overlay) return CGRectNull;
     CGRect top = topRow.frame;
-    CGPoint target = CGPointMake(CGRectGetMinX(top) - PGRowGap - CGRectGetWidth(row.bounds) / 2.0, CGRectGetMidY(top));
+    CGRect settingsFrame = [topRow convertRect:settings.frame toView:overlay];
+    CGFloat gap = row.spacing;
+    // YTPlus's row right before settings.
+    CGFloat rowWidth = CGRectGetWidth(row.bounds);
+    CGPoint target = CGPointMake(CGRectGetMinX(settingsFrame) - gap - rowWidth / 2.0, CGRectGetMidY(top));
     CGAffineTransform move = CGAffineTransformMakeTranslation(target.x - row.center.x, target.y - row.center.y);
     if (!CGAffineTransformEqualToTransform(row.transform, move)) row.transform = move;
     if ([overlay.subviews indexOfObject:row] < [overlay.subviews indexOfObject:topRow]) [overlay insertSubview:row aboveSubview:topRow];
-
+    // The quality label left of it, above the capsule.
+    UIView *quality = nil;
     for (UIView *sibling in topRow.subviews) {
-        if (sibling != settings && [sibling isKindOfClass:buttonClass] && [topRow.subviews indexOfObject:sibling] < [topRow.subviews indexOfObject:settings]) {
-            [topRow bringSubviewToFront:sibling]; // the quality label above the capsule
-        }
+        if (sibling != settings && [sibling isKindOfClass:buttonClass]) quality = sibling;
+    }
+    CGRect group = CGRectUnion(row.frame, settingsFrame);
+    if (quality) {
+        CGFloat x = target.x - rowWidth / 2.0 - gap - CGRectGetWidth(quality.bounds) / 2.0;
+        CGPoint center = [topRow convertPoint:quality.center toView:overlay];
+        CGAffineTransform shift = CGAffineTransformMakeTranslation(x - center.x, 0.0);
+        if (!CGAffineTransformEqualToTransform(quality.transform, shift)) quality.transform = shift;
+        if (topRow.subviews.lastObject != quality) [topRow bringSubviewToFront:quality];
+        group = CGRectUnion(group, [topRow convertRect:quality.frame toView:overlay]);
     }
     UIView *capsule = objc_getAssociatedObject(settings, PGGroupKey);
     if (capsule == nil) {
@@ -136,7 +147,6 @@ static CGRect PGGroupYTPlusRow(UIView *overlay, Class buttonClass) {
         if (capsule == nil) return CGRectNull;
         objc_setAssociatedObject(settings, PGGroupKey, capsule, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    CGRect group = CGRectUnion(row.frame, top);
     CGFloat height = MIN(PGTopGlassDiameter, CGRectGetHeight(group));
     group = CGRectMake(CGRectGetMinX(group) - PGGroupPadding, CGRectGetMidY(top) - height / 2.0,
                        CGRectGetWidth(group) + PGGroupPadding * 2.0, height);
