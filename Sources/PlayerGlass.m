@@ -163,6 +163,35 @@ static CGRect PGGroupYTPlusRow(UIView *overlay, Class buttonClass) {
 #pragma mark - Bottom pill (quality label + full screen)
 
 static const void *PGPillKey = &PGPillKey;       // full screen button view -> the pill
+static CGFloat const PGPillPadding = 10.0;        // pill edge to the label's text and to the full screen icon
+static CGFloat const PGPillGap = 8.0;             // between the label's text and the full screen icon
+static const void *PGMovedKey = &PGMovedKey;      // full screen button view -> PGWeak: the quality label's holder we moved
+
+@interface PGWeak : NSObject
+@property (nonatomic, weak) UIView *view;
+@end
+
+@implementation PGWeak
+@end
+
+// What a button draws (its label or icon), in view's coordinates; the button's own frame if it draws nothing.
+static CGRect PGDrawnFrame(UIView *button, UIView *view) {
+    static Class glassClass;
+    if (glassClass == Nil) glassClass = NSClassFromString(@"YTFrostedGlassView");
+    CGRect drawn = CGRectNull;
+    for (UIView *inner in button.subviews) {
+        if (inner.hidden || [inner isKindOfClass:glassClass] || CGRectGetWidth(inner.bounds) <= 0.0) continue;
+        if ([inner isKindOfClass:UILabel.class] || [inner isKindOfClass:UIImageView.class]) {
+            CGRect frame = [button convertRect:inner.frame toView:view];
+            if ([inner isKindOfClass:UILabel.class]) { // the text itself, not the label's box
+                CGSize text = [inner sizeThatFits:inner.bounds.size];
+                frame = CGRectInset(frame, MAX(0.0, (CGRectGetWidth(frame) - text.width) / 2.0), 0.0);
+            }
+            drawn = CGRectUnion(drawn, frame);
+        }
+    }
+    return CGRectIsNull(drawn) ? [button convertRect:button.bounds toView:view] : drawn;
+}
 static const void *PGHiddenGlassKey = &PGHiddenGlassKey; // glass view -> @YES while we hide it for the pill
 
 static UIView *PGFindClass(UIView *view, Class cls, int depth) {
@@ -201,16 +230,30 @@ static void PGBarContainerLayout(UIView *self, SEL _cmd) {
     UIView *fullscreen = fullscreenClass ? PGFindClass(self, fullscreenClass, 3) : nil;
     if (fullscreen == nil || buttonClass == Nil) return;
     CGRect fullFrame = [fullscreen convertRect:fullscreen.bounds toView:self];
-    // The quality label: a button of the bar on the full screen button's line, just left of it.
-    UIView *quality = nil;
-    for (UIView *subview in self.subviews) {
-        if (![subview isKindOfClass:buttonClass] || subview.hidden || subview.alpha < 0.01) continue;
-        CGRect frame = subview.frame;
-        if (fabs(CGRectGetMidY(frame) - CGRectGetMidY(fullFrame)) < 4.0 && CGRectGetMaxX(frame) <= CGRectGetMinX(fullFrame) &&
-            CGRectGetMinX(fullFrame) - CGRectGetMaxX(frame) < 24.0) quality = subview;
+    // The quality label: a button of the bar (directly, or in a wrapper in full screen) on the full screen button's
+    // line, just left of it. Its holder (the bar's child holding it) is what gets moved.
+    UIView *quality = nil, *holder = nil;
+    PGWeak *moved = objc_getAssociatedObject(fullscreen, PGMovedKey);
+    for (UIView *child in self.subviews) {
+        if (child.hidden || child.alpha < 0.01 || [fullscreen isDescendantOfView:child]) continue;
+        UIView *button = [child isKindOfClass:buttonClass] ? child : nil;
+        for (UIView *inner in child.subviews) if (button == nil && [inner isKindOfClass:buttonClass] && !inner.hidden) button = inner;
+        if (button == nil) continue;
+        CGRect frame = CGRectOffset([button convertRect:button.bounds toView:self], -child.transform.tx, -child.transform.ty); // where YouTube put it
+        if (fabs(CGRectGetMidY(frame) - CGRectGetMidY(fullFrame)) < 4.0 && CGRectGetMaxX(frame) <= CGRectGetMinX(fullFrame) + 0.5 &&
+            CGRectGetMinX(fullFrame) - CGRectGetMaxX(frame) < 24.0) {
+            quality = button;
+            holder = child;
+        }
     }
+    if (moved.view && moved.view != holder) moved.view.transform = CGAffineTransformIdentity;
+    if (moved == nil) {
+        moved = [PGWeak new];
+        objc_setAssociatedObject(fullscreen, PGMovedKey, moved, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    moved.view = holder;
     UIView *pill = objc_getAssociatedObject(fullscreen, PGPillKey);
-    UIView *fullscreenButton = PGFindIdentifier(fullscreen, @"id.player.watch.fullscreen.button", 2);
+    UIView *fullscreenButton = PGFindClass(fullscreen, buttonClass, 2);
     if (quality == nil) {
         pill.hidden = YES;
         PGHideRoundGlass(fullscreen, NO);
@@ -223,12 +266,19 @@ static void PGBarContainerLayout(UIView *self, SEL _cmd) {
         objc_setAssociatedObject(pill, PGPillKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         objc_setAssociatedObject(fullscreen, PGPillKey, pill, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
+    UIView *icon = fullscreenButton ?: fullscreen;
+    // The label moved towards the icon (within the bar, so it stays tappable).
+    CGRect iconFrame = PGDrawnFrame(icon, self), text = PGDrawnFrame(quality, self);
+    CGFloat shift = holder.transform.tx + (CGRectGetMinX(iconFrame) - PGPillGap - CGRectGetMaxX(text));
+    CGAffineTransform move = CGAffineTransformMakeTranslation(MAX(0.0, shift), 0.0);
+    if (!CGAffineTransformEqualToTransform(holder.transform, move)) holder.transform = move;
     PGHideRoundGlass(quality, YES);
     PGHideRoundGlass(fullscreen, YES);
     if (fullscreenButton) PGHideRoundGlass(fullscreenButton, YES);
-    CGRect group = CGRectUnion(quality.frame, fullFrame);
+    CGRect content = CGRectUnion(PGDrawnFrame(quality, self), PGDrawnFrame(icon, self));
     CGFloat height = CGRectGetHeight(fullFrame);
-    group = CGRectMake(CGRectGetMinX(group), CGRectGetMidY(fullFrame) - height / 2.0, CGRectGetWidth(group), height);
+    CGRect group = CGRectMake(CGRectGetMinX(content) - PGPillPadding, CGRectGetMidY(fullFrame) - height / 2.0,
+                              CGRectGetWidth(content) + PGPillPadding * 2.0, height);
     CGRect frame = [self convertRect:group toView:fullscreen];
     if (!CGRectEqualToRect(pill.frame, frame)) {
         pill.frame = frame;
@@ -239,7 +289,7 @@ static void PGBarContainerLayout(UIView *self, SEL _cmd) {
     pill.hidden = NO;
     if (pill.superview != fullscreen) [fullscreen insertSubview:pill atIndex:0];
     else if (fullscreen.subviews.firstObject != pill) [fullscreen sendSubviewToBack:pill];
-    if (self.subviews.lastObject != quality) [self bringSubviewToFront:quality]; // the label above the pill
+    if (self.subviews.lastObject != holder) [self bringSubviewToFront:holder]; // the label above the pill
 }
 
 static IMP OriginalOverlayLayout;
