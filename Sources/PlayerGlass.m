@@ -109,6 +109,24 @@ static UIStackView *PGYTPlusRow(UIView *overlay, Class buttonClass) {
 
 static const void *PGGroupKey = &PGGroupKey; // settings button -> the group's glass capsule
 
+// The top row's container, once the quality label is moved out of its bounds: taps there still reach the label.
+@interface PGTopRowView : UIView
+@end
+
+@implementation PGTopRowView
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+    UIView *hit = [super hitTest:point withEvent:event];
+    if (hit != nil && hit != self) return hit;
+    for (UIView *subview in self.subviews.reverseObjectEnumerator) {
+        if (CGAffineTransformIsIdentity(subview.transform) || subview.hidden || subview.alpha < 0.01 || !subview.userInteractionEnabled) continue;
+        CGRect area = subview.frame; // the button and what it draws (the label sits outside its zero height)
+        for (UIView *inner in subview.subviews) area = CGRectUnion(area, [subview convertRect:inner.frame toView:self]);
+        if (CGRectContainsPoint(CGRectInset(area, -8.0, -8.0), point)) return subview;
+    }
+    return hit;
+}
+@end
+
 // Moved with a transform: YTPlus keeps laying the row out where it was, and the move is worked out again each time.
 // YouTube fades each button on its own, so the capsule lives in the settings button (fading with it) and reaches
 // left under the quality label and YTPlus's row, which are kept above it. Returns the capsule's frame in the overlay,
@@ -134,6 +152,7 @@ static CGRect PGGroupYTPlusRow(UIView *overlay, Class buttonClass) {
     }
     CGRect group = CGRectUnion(row.frame, settingsFrame);
     if (quality) {
+        if (object_getClass(topRow) == UIView.class) object_setClass(topRow, PGTopRowView.class);
         CGFloat x = target.x - rowWidth / 2.0 - gap - CGRectGetWidth(quality.bounds) / 2.0;
         CGPoint center = [topRow convertPoint:quality.center toView:overlay];
         CGAffineTransform shift = CGAffineTransformMakeTranslation(x - center.x, 0.0);
