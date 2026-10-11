@@ -34,7 +34,7 @@ make clean && make package FINALPACKAGE=1 \
   ADDITIONAL_CFLAGS="-Wunused-const-variable -Wunused-parameter -Wunreachable-code-aggressive -Wunused-function"
 ```
 
-The build must be warning-free. IPA: `bash Scripts/inject-ipa.sh "stock/YTPlus 6.0b2 21.39.4.ipa" dist/YTGlass.dylib ~/Downloads/YTPlus_6.0b2_YTGlass_X.Y.Z.ipa`
+The build must be warning-free. Delete old `.deb`s in `packages/` before each build (released ones are on GitHub). IPA: `bash Scripts/inject-ipa.sh "stock/YTPlus 6.0b2 21.39.4.ipa" dist/YTGlass.dylib ~/Downloads/YTPlus_6.0b2_YTGlass_X.Y.Z.ipa`
 (the stock IPA is kept in `stock/`, which is gitignored; if it is missing, ask Michael to upload it).
 
 ## Settings
