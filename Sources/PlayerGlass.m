@@ -6,19 +6,15 @@
 // and give the top-row buttons (captions, settings, cast, ...) the same glass circles.
 //
 // YTPlus puts a second row of buttons (mute, sleep timer, its menu) under the top row's quality label and settings
-// button, in a UIStackView of YTQTMButtons labelled YTL...; that row is moved up beside them, so it gets glass too.
+// button, in a UIStackView of YTQTMButtons labelled YTL...; that row is moved up beside them, and the whole group
+// (YTPlus's buttons, the quality label and settings) shares one glass capsule instead of a circle each.
 
 #import "Common.h"
 
 static NSInteger const PGGlassStyle = 2;       // YouTube's liquidGlassEffectStyle: 1 regular, 2 clear
 static CGFloat const PGTopGlassDiameter = 40.0; // glass circle behind each top-row button
 static CGFloat const PGRowGap = 10.0;           // between YTPlus's row and the top row
-static CGFloat const PGCircleGap = 6.0;         // between the glass circles in YTPlus's row
-
-// Narrow buttons (24pt wide, 36-40pt tall) still get a circle that shows around the icon.
-static CGFloat PGDiameter(CGRect bounds) {
-    return MIN(PGTopGlassDiameter, MAX(CGRectGetWidth(bounds), CGRectGetHeight(bounds)));
-}
+static CGFloat const PGGroupPadding = 8.0;      // capsule beyond the group's outer buttons
 
 // Hooks only when the method returns the expected type (these are YouTube flags; a changed type means a
 // changed meaning).
@@ -50,6 +46,11 @@ static UIView *PGMakeGlass(void) {
     return glass;
 }
 
+static void PGRemoveGlass(UIButton *button) {
+    UIView *glass = objc_getAssociatedObject(button, PGGlassKey);
+    if (glass.superview) [glass removeFromSuperview];
+}
+
 static void PGPlaceGlass(UIButton *button) {
     UIView *glass = objc_getAssociatedObject(button, PGGlassKey);
     if (glass == nil) {
@@ -58,7 +59,7 @@ static void PGPlaceGlass(UIButton *button) {
         objc_setAssociatedObject(button, PGGlassKey, glass, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     CGRect bounds = button.bounds;
-    CGFloat diameter = PGDiameter(bounds);
+    CGFloat diameter = MIN(PGTopGlassDiameter, MIN(CGRectGetWidth(bounds), CGRectGetHeight(bounds)));
     CGRect frame = CGRectMake(CGRectGetMidX(bounds) - diameter / 2.0, CGRectGetMidY(bounds) - diameter / 2.0, diameter, diameter);
     if (!CGRectEqualToRect(glass.frame, frame)) {
         glass.frame = frame;
@@ -107,19 +108,42 @@ static UIStackView *PGYTPlusRow(UIView *overlay, Class buttonClass) {
     return nil;
 }
 
+static const void *PGGroupKey = &PGGroupKey; // top row -> the group's glass capsule
+
 // Moved with a transform: YTPlus keeps laying the row out where it was, and the move is worked out again each time.
-static void PGMoveYTPlusRow(UIView *overlay, Class buttonClass) {
+// The capsule lives in the top row (behind its buttons, fading with it) and reaches left under YTPlus's row, which
+// is kept above the top row. Returns the capsule's frame in the overlay, or CGRectNull.
+static CGRect PGGroupYTPlusRow(UIView *overlay, Class buttonClass) {
     UIStackView *row = PGYTPlusRow(overlay, buttonClass);
     UIView *settings = PGFindIdentifier(overlay, @"id.player.overflow.button", 3);
     UIView *topRow = settings.superview;
-    if (row == nil || topRow == nil) return;
-    UIView *first = row.arrangedSubviews.firstObject;
-    CGFloat spacing = PGDiameter(first.bounds) + PGCircleGap - CGRectGetWidth(first.bounds);
-    if (row.spacing < spacing) row.spacing = spacing;
-    CGRect top = [topRow convertRect:topRow.bounds toView:overlay];
+    if (row == nil || topRow == nil || row.superview != overlay || topRow.superview != overlay) return CGRectNull;
+    CGRect top = topRow.frame;
     CGPoint target = CGPointMake(CGRectGetMinX(top) - PGRowGap - CGRectGetWidth(row.bounds) / 2.0, CGRectGetMidY(top));
     CGAffineTransform move = CGAffineTransformMakeTranslation(target.x - row.center.x, target.y - row.center.y);
     if (!CGAffineTransformEqualToTransform(row.transform, move)) row.transform = move;
+    if ([overlay.subviews indexOfObject:row] < [overlay.subviews indexOfObject:topRow]) [overlay insertSubview:row aboveSubview:topRow];
+
+    UIView *capsule = objc_getAssociatedObject(topRow, PGGroupKey);
+    if (capsule == nil) {
+        capsule = PGMakeGlass();
+        if (capsule == nil) return CGRectNull;
+        objc_setAssociatedObject(topRow, PGGroupKey, capsule, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    CGRect group = CGRectUnion(row.frame, top);
+    CGFloat height = MIN(PGTopGlassDiameter, CGRectGetHeight(group));
+    group = CGRectMake(CGRectGetMinX(group) - PGGroupPadding, CGRectGetMidY(top) - height / 2.0,
+                       CGRectGetWidth(group) + PGGroupPadding * 2.0, height);
+    CGRect frame = [overlay convertRect:group toView:topRow];
+    if (!CGRectEqualToRect(capsule.frame, frame)) {
+        capsule.frame = frame;
+        SEL radiusSel = NSSelectorFromString(@"setCornerRadius:");
+        if ([capsule respondsToSelector:radiusSel]) ((void (*)(id, SEL, CGFloat))objc_msgSend)(capsule, radiusSel, height / 2.0);
+        else { capsule.layer.cornerRadius = height / 2.0; capsule.clipsToBounds = YES; }
+    }
+    if (capsule.superview != topRow) [topRow insertSubview:capsule atIndex:0];
+    else if (topRow.subviews.firstObject != capsule) [topRow sendSubviewToBack:capsule];
+    return group;
 }
 
 static IMP OriginalOverlayLayout;
@@ -130,12 +154,16 @@ static void PGOverlayLayout(UIView *self, SEL _cmd) {
     if (buttonClass == Nil) buttonClass = NSClassFromString(@"YTQTMButton");
     SEL maxYSel = NSSelectorFromString(@"topControlsMaxY");
     if (buttonClass == Nil || ![self respondsToSelector:maxYSel]) return;
-    PGMoveYTPlusRow(self, buttonClass);
+    CGRect group = PGGroupYTPlusRow(self, buttonClass);
     CGFloat maxY = ((CGFloat (*)(id, SEL))objc_msgSend)(self, maxYSel);
     if (maxY <= 0.0) return;
     NSMutableArray *buttons = [NSMutableArray array];
     PGCollectTopButtons(self, maxY, self, buttonClass, 3, buttons);
-    for (UIButton *button in buttons) PGPlaceGlass(button);
+    for (UIButton *button in buttons) {
+        CGRect frame = [button convertRect:button.bounds toView:self];
+        if (CGRectContainsPoint(group, CGPointMake(CGRectGetMidX(frame), CGRectGetMidY(frame)))) PGRemoveGlass(button);
+        else PGPlaceGlass(button);
+    }
 }
 
 __attribute__((constructor)) static void PGInit(void) {
