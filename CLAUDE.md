@@ -21,7 +21,7 @@ Maintainer: Michael Melita. See README.md for features and file layout.
   No changelog entry, tag or release for debug builds.
 - Only when Michael says to release: set the plain version, add one line to the README changelog,
   commit, tag `vX.Y.Z`, push, and create a GitHub release with `YTGlass.dylib` and the `.deb` attached
-  (and the IPA if he asks; IPAs are ~147MB, name them `YTPlus_6.0b2_YTGlass_X.Y.Z.ipa`).
+  (never the IPA: when he asks for one, build it as `dist/YTPlus_6.0b2_YTGlass_X.Y.Z.ipa` and hand it to him directly).
 
 ## Build
 
