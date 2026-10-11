@@ -74,6 +74,6 @@ switch at launch, so changes apply after a restart (the page's bottom row says s
 
 ## Planned
 
-- Player: move the second-row buttons at the top right of the player (YouQuality's "720p 60" label, the speaker
-  and the sparkle buttons, likely from YTVideoOverlay) into the top row, and give them the same Liquid Glass
-  circle as the other top-row buttons.
+- Player: move the second-row buttons at the top right of the player (all added by YTPlus: the "720p 60" quality
+  label, the speaker and the sparkle buttons) into the top row, and give them the same Liquid Glass circle as the
+  other top-row buttons.
