@@ -8,7 +8,7 @@ include $(THEOS)/makefiles/common.mk
 LIBRARY_NAME = YTGlass
 
 YTGlass_FILES = Sources/TabBarAutoHide.m Sources/SearchButton.m Sources/HideTopBar.m Sources/PlayerGlass.m Sources/Settings.m
-YTGlass_CFLAGS = -fobjc-arc -Wall -Wextra -Werror=return-type
+YTGlass_CFLAGS = -fobjc-arc -Wall -Wextra -Werror=return-type -DYTG_VERSION=\"$(shell grep '^Version:' control | cut -d' ' -f2)\"
 YTGlass_FRAMEWORKS = Foundation UIKit QuartzCore
 YTGlass_LDFLAGS = -Wl,-install_name,@rpath/YTGlass.dylib
 YTGlass_INSTALL_PATH = /Library/MobileSubstrate/DynamicLibraries

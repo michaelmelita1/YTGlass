@@ -141,6 +141,7 @@ static void YTGUpdateSection(id self, SEL _cmd, NSUInteger category, id entry) {
         YTGSwitch(@"Liquid Glass player",
                   @"Liquid Glass video player controls.", YTGPlayerKey) ?: NSNull.null,
         YTGNote(@"Restart YouTube to apply changes.") ?: NSNull.null,
+        YTGNote(@"YTGlass " YTG_VERSION) ?: NSNull.null,
     ] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"self != %@", NSNull.null]];
     SEL withIcon = NSSelectorFromString(@"setSectionItems:forCategory:title:icon:titleDescription:headerHidden:");
     SEL withoutIcon = NSSelectorFromString(@"setSectionItems:forCategory:title:titleDescription:headerHidden:");
