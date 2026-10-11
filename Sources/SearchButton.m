@@ -141,6 +141,18 @@ static UIView *TBSCapsule(UIView *view, UITabBar *tabBar, NSInteger depth, UIVie
     return best;
 }
 
+// The capsule found last time, reused while it's still shown inside the same tab bar.
+static UIView *TBSFindCapsule(UITabBar *tabBar) {
+    static __weak UIView *lastCapsule;
+    static __weak UITabBar *lastTabBar;
+    UIView *capsule = lastCapsule;
+    if (capsule && lastTabBar == tabBar && !capsule.hidden && capsule.alpha >= 0.01 && [capsule isDescendantOfView:tabBar]) return capsule;
+    capsule = TBSCapsule(tabBar, tabBar, 4, nil);
+    lastCapsule = capsule;
+    lastTabBar = tabBar;
+    return capsule;
+}
+
 static BOOL TBSRightToLeft(UIView *view) {
     return view.effectiveUserInterfaceLayoutDirection == UIUserInterfaceLayoutDirectionRightToLeft;
 }
@@ -199,7 +211,7 @@ static void TBSBarLayout(UIView *self, SEL _cmd) {
     [tabBar layoutIfNeeded];
 
     // Match the capsule: same height, same vertical centre, same outer margin.
-    UIView *capsule = TBSCapsule(tabBar, tabBar, 4, nil);
+    UIView *capsule = TBSFindCapsule(tabBar);
     CGRect capsuleFrame = capsule ? [capsule convertRect:capsule.bounds toView:self] : CGRectZero;
     if (capsule != nil && fabs(CGRectGetHeight(capsuleFrame) - TBSSize) > 0.5) {
         TBSSize = CGRectGetHeight(capsuleFrame);

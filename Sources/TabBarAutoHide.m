@@ -22,7 +22,8 @@
 #pragma mark - Tab bar helpers
 
 static const void *TBHSelectedKey = &TBHSelectedKey;
-static __weak UIView *TBHBar; // the YTPivotBarView currently on screen
+static __weak UIView *TBHBar;      // the YTPivotBarView currently on screen
+static __weak UIView *TBHLastSelected; // the tab button selected last (kept up to date by TBHItemSetSelected)
 
 static Class TBHItemClass(void) {
     static Class itemClass;
@@ -40,18 +41,19 @@ static void TBHCollectItems(UIView *view, NSMutableArray<UIView *> *items) {
 
 static BOOL TBHItemSelected(UIView *item) {
     if ([objc_getAssociatedObject(item, TBHSelectedKey) boolValue]) return YES;
-    SEL selector = NSSelectorFromString(@"isSelected");
-    if ([item respondsToSelector:selector] && ((BOOL (*)(id, SEL))objc_msgSend)(item, selector)) return YES;
+    if ([item respondsToSelector:@selector(isSelected)] && ((BOOL (*)(id, SEL))objc_msgSend)(item, @selector(isSelected))) return YES;
     return (item.accessibilityTraits & UIAccessibilityTraitSelected) != 0;
 }
 
 static UIView *TBHSelectedItem(UIView *bar) {
+    UIView *last = TBHLastSelected;
+    if (last != nil && TBHItemSelected(last) && [last isDescendantOfView:bar]) return last;
     NSMutableArray<UIView *> *items = [NSMutableArray array];
     TBHCollectItems(bar, items);
     // Hidden buttons count too: tweaks like YTPlus hide YouTube's own buttons behind a system
     // UITabBar, but YouTube still keeps their selected state up to date.
     for (UIView *item in items) {
-        if (TBHItemSelected(item)) return item;
+        if (TBHItemSelected(item)) return (TBHLastSelected = item);
     }
     return nil;
 }
@@ -63,7 +65,30 @@ static NSString *TBHItemIdentifier(UIView *item) {
     return [identifier isKindOfClass:NSString.class] ? identifier : nil;
 }
 
+// Whether the tab bar has a Shorts tab (YTPlus can remove it). Decided once every tab's identifier can be read;
+// selecting a Shorts tab later turns it back on (TBHItemSetSelected).
+typedef NS_ENUM(NSInteger, TBHShortsTabState) { TBHShortsTabUnknown, TBHShortsTabNone, TBHShortsTabPresent };
+static TBHShortsTabState TBHShortsTab;
+
+static BOOL TBHHasShortsTab(UIView *bar) {
+    if (TBHShortsTab != TBHShortsTabUnknown) return TBHShortsTab == TBHShortsTabPresent;
+    NSMutableArray<UIView *> *items = [NSMutableArray array];
+    TBHCollectItems(bar, items);
+    if (items.count == 0) return YES;
+    for (UIView *item in items) {
+        NSString *identifier = TBHItemIdentifier(item);
+        if (identifier == nil) return YES; // not readable yet
+        if ([identifier isEqualToString:@"FEshorts"]) {
+            TBHShortsTab = TBHShortsTabPresent;
+            return YES;
+        }
+    }
+    TBHShortsTab = TBHShortsTabNone;
+    return NO;
+}
+
 static BOOL TBHOnShorts(UIView *bar) {
+    if (!TBHHasShortsTab(bar)) return NO;
     UIView *selected = TBHSelectedItem(bar);
     return selected != nil && [TBHItemIdentifier(selected) isEqualToString:@"FEshorts"];
 }
@@ -93,7 +118,8 @@ static void TBHAppViewCall(UIView *appView, NSString *selectorName) {
 
 static BOOL TBHBarHidden(UIView *bar) {
     UIView *appView = bar ? TBHAppView(bar) : nil;
-    SEL selector = NSSelectorFromString(@"isPivotBarHidden");
+    static SEL selector;
+    if (selector == NULL) selector = NSSelectorFromString(@"isPivotBarHidden");
     if (appView == nil || ![appView respondsToSelector:selector]) return NO;
     return ((BOOL (*)(id, SEL))objc_msgSend)(appView, selector);
 }
@@ -249,7 +275,10 @@ static void TBHItemSetSelected(UIView *self, SEL _cmd, BOOL selected) {
     BOOL wasSelected = [objc_getAssociatedObject(self, TBHSelectedKey) boolValue];
     if (OriginalItemSetSelected) ((void (*)(id, SEL, BOOL))OriginalItemSetSelected)(self, _cmd, selected);
     objc_setAssociatedObject(self, TBHSelectedKey, @(selected), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    if (!selected || wasSelected) return;
+    if (!selected) return;
+    TBHLastSelected = self;
+    if (TBHShortsTab == TBHShortsTabNone && [TBHItemIdentifier(self) isEqualToString:@"FEshorts"]) TBHShortsTab = TBHShortsTabPresent;
+    if (wasSelected) return;
     UIView *bar = self.superview;
     while (bar != nil && ![NSStringFromClass(bar.class) isEqualToString:@"YTPivotBarView"]) bar = bar.superview;
     TBHSetBarHidden(bar, NO); // switching tabs always brings the bar back
