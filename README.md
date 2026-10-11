@@ -48,6 +48,7 @@ Pure Objective-C runtime swizzling, no CydiaSubstrate/ElleKit dependency. See `L
 
 ## Changelog
 
+- **0.0.4**: a Settings item in YTPlus's tab bar menu opens YouTube's settings from any tab; new YTPlus Settings Fix switch makes the settings close button tappable again with YTPlus's Liquid Glass.
 - **0.0.3**: the YTGlass settings page shows the installed version at the bottom; code cleanup.
 - **0.0.2**: pages opened on top of a tab (channels, playlists, …) keep YouTube's navigation bar, with their back button and header; fixes channel pages losing their header and, on iPad, not responding to touches.
 - **0.0.1**: first public release.
