@@ -163,9 +163,9 @@ static CGRect PGGroupYTPlusRow(UIView *overlay, Class buttonClass) {
 #pragma mark - Bottom pill (quality label + full screen)
 
 static const void *PGPillKey = &PGPillKey;       // full screen button view -> the pill
-static CGFloat const PGPillPadding = 12.0;        // pill edge to the label's slot and to the full screen icon
+static CGFloat const PGPillPadding = 10.0;        // pill edge to the label's slot and to the full screen icon
 static CGFloat const PGPillGap = 8.0;             // between the label's slot and the full screen icon
-static CGFloat const PGLabelSlot = 32.0;          // the label's room ("720p"); shorter text ("HD") is centred in it
+static CGFloat const PGLabelSlot = 28.0;          // the label's room ("720p"); shorter text ("HD") is centred in it
 static const void *PGMovedKey = &PGMovedKey;      // full screen button view -> PGWeak: the quality label's holder we moved
 
 @interface PGWeak : NSObject
@@ -368,7 +368,15 @@ static void PGBarContainerLayout(UIView *self, SEL _cmd) {
     pill.hidden = NO;
     if (pill.superview != fullscreen) [fullscreen insertSubview:pill atIndex:0];
     else if (fullscreen.subviews.firstObject != pill) [fullscreen sendSubviewToBack:pill];
-    if (holder.superview == self && self.subviews.lastObject != holder) [self bringSubviewToFront:holder]; // the label above the pill
+    // The label above the pill, wherever each sits: otherwise the glass refracts the label's text.
+    UIView *common = holder.superview;
+    while (common && ![fullscreen isDescendantOfView:common]) common = common.superview;
+    UIView *labelBranch = holder, *pillBranch = fullscreen;
+    while (labelBranch.superview != common) labelBranch = labelBranch.superview;
+    while (pillBranch.superview != common) pillBranch = pillBranch.superview;
+    if (common && [common.subviews indexOfObject:labelBranch] < [common.subviews indexOfObject:pillBranch]) {
+        [common insertSubview:labelBranch aboveSubview:pillBranch];
+    }
 }
 
 static IMP OriginalOverlayLayout;
