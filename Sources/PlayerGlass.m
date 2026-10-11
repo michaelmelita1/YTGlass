@@ -13,6 +13,12 @@
 static NSInteger const PGGlassStyle = 2;       // YouTube's liquidGlassEffectStyle: 1 regular, 2 clear
 static CGFloat const PGTopGlassDiameter = 40.0; // glass circle behind each top-row button
 static CGFloat const PGRowGap = 10.0;           // between YTPlus's row and the top row
+static CGFloat const PGCircleGap = 6.0;         // between the glass circles in YTPlus's row
+
+// Narrow buttons (24pt wide, 36-40pt tall) still get a circle that shows around the icon.
+static CGFloat PGDiameter(CGRect bounds) {
+    return MIN(PGTopGlassDiameter, MAX(CGRectGetWidth(bounds), CGRectGetHeight(bounds)));
+}
 
 // Hooks only when the method returns the expected type (these are YouTube flags; a changed type means a
 // changed meaning).
@@ -52,7 +58,7 @@ static void PGPlaceGlass(UIButton *button) {
         objc_setAssociatedObject(button, PGGlassKey, glass, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     CGRect bounds = button.bounds;
-    CGFloat diameter = MIN(PGTopGlassDiameter, MIN(CGRectGetWidth(bounds), CGRectGetHeight(bounds)));
+    CGFloat diameter = PGDiameter(bounds);
     CGRect frame = CGRectMake(CGRectGetMidX(bounds) - diameter / 2.0, CGRectGetMidY(bounds) - diameter / 2.0, diameter, diameter);
     if (!CGRectEqualToRect(glass.frame, frame)) {
         glass.frame = frame;
@@ -107,6 +113,9 @@ static void PGMoveYTPlusRow(UIView *overlay, Class buttonClass) {
     UIView *settings = PGFindIdentifier(overlay, @"id.player.overflow.button", 3);
     UIView *topRow = settings.superview;
     if (row == nil || topRow == nil) return;
+    UIView *first = row.arrangedSubviews.firstObject;
+    CGFloat spacing = PGDiameter(first.bounds) + PGCircleGap - CGRectGetWidth(first.bounds);
+    if (row.spacing < spacing) row.spacing = spacing;
     CGRect top = [topRow convertRect:topRow.bounds toView:overlay];
     CGPoint target = CGPointMake(CGRectGetMinX(top) - PGRowGap - CGRectGetWidth(row.bounds) / 2.0, CGRectGetMidY(top));
     CGAffineTransform move = CGAffineTransformMakeTranslation(target.x - row.center.x, target.y - row.center.y);
