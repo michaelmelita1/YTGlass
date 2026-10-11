@@ -230,20 +230,25 @@ static void PGBarContainerLayout(UIView *self, SEL _cmd) {
     UIView *fullscreen = fullscreenClass ? PGFindClass(self, fullscreenClass, 3) : nil;
     if (fullscreen == nil || buttonClass == Nil) return;
     CGRect fullFrame = [fullscreen convertRect:fullscreen.bounds toView:self];
-    // The quality label: a button of the bar (directly, or in a wrapper in full screen) on the full screen button's
-    // line, just left of it. Its holder (the bar's child holding it) is what gets moved.
+    // The quality label: a button on the full screen button's line, just left of it, in the bar or (full screen) in a
+    // small wrapper elsewhere in the player. Visibility is judged by hidden, not alpha: the controls fade in from 0.
+    // Its holder (the button, or the wrapper sized to it) is what gets moved, so it stays inside a large parent.
     UIView *quality = nil, *holder = nil;
     PGWeak *moved = objc_getAssociatedObject(fullscreen, PGMovedKey);
-    for (UIView *child in self.subviews) {
-        if (child.hidden || child.alpha < 0.01 || [fullscreen isDescendantOfView:child]) continue;
-        UIView *button = [child isKindOfClass:buttonClass] ? child : nil;
-        for (UIView *inner in child.subviews) if (button == nil && [inner isKindOfClass:buttonClass] && !inner.hidden) button = inner;
-        if (button == nil) continue;
-        CGRect frame = CGRectOffset([button convertRect:button.bounds toView:self], -child.transform.tx, -child.transform.ty); // where YouTube put it
+    UIView *root = self.superview ?: self;
+    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:root];
+    for (NSUInteger i = 0; i < queue.count && i < 300 && quality == nil; i++) {
+        UIView *view = queue[i];
+        if (view.hidden || view == fullscreen) continue;
+        if (![view isKindOfClass:buttonClass]) { [queue addObjectsFromArray:view.subviews]; continue; }
+        UIView *wrapper = view;
+        while (wrapper.superview && wrapper.superview != root && CGRectGetWidth(wrapper.superview.bounds) < 60.0) wrapper = wrapper.superview;
+        CGRect frame = [view convertRect:view.bounds toView:self];
+        frame = CGRectOffset(frame, -wrapper.transform.tx, -wrapper.transform.ty); // where YouTube put it
         if (fabs(CGRectGetMidY(frame) - CGRectGetMidY(fullFrame)) < 4.0 && CGRectGetMaxX(frame) <= CGRectGetMinX(fullFrame) + 0.5 &&
             CGRectGetMinX(fullFrame) - CGRectGetMaxX(frame) < 24.0) {
-            quality = button;
-            holder = child;
+            quality = view;
+            holder = wrapper;
         }
     }
     if (moved.view && moved.view != holder) moved.view.transform = CGAffineTransformIdentity;
@@ -289,7 +294,7 @@ static void PGBarContainerLayout(UIView *self, SEL _cmd) {
     pill.hidden = NO;
     if (pill.superview != fullscreen) [fullscreen insertSubview:pill atIndex:0];
     else if (fullscreen.subviews.firstObject != pill) [fullscreen sendSubviewToBack:pill];
-    if (self.subviews.lastObject != holder) [self bringSubviewToFront:holder]; // the label above the pill
+    if (holder.superview == self && self.subviews.lastObject != holder) [self bringSubviewToFront:holder]; // the label above the pill
 }
 
 static IMP OriginalOverlayLayout;
