@@ -163,8 +163,9 @@ static CGRect PGGroupYTPlusRow(UIView *overlay, Class buttonClass) {
 #pragma mark - Bottom pill (quality label + full screen)
 
 static const void *PGPillKey = &PGPillKey;       // full screen button view -> the pill
-static CGFloat const PGPillPadding = 10.0;        // pill edge to the label's text and to the full screen icon
-static CGFloat const PGPillGap = 8.0;             // between the label's text and the full screen icon
+static CGFloat const PGPillPadding = 12.0;        // pill edge to the label's slot and to the full screen icon
+static CGFloat const PGPillGap = 8.0;             // between the label's slot and the full screen icon
+static CGFloat const PGLabelSlot = 32.0;          // the label's room ("720p"); shorter text ("HD") is centred in it
 static const void *PGMovedKey = &PGMovedKey;      // full screen button view -> PGWeak: the quality label's holder we moved
 
 @interface PGWeak : NSObject
@@ -346,12 +347,14 @@ static void PGBarContainerLayout(UIView *self, SEL _cmd) {
     UIView *icon = fullscreenButton ?: fullscreen;
     // The label moved towards the icon (within the bar, so it stays tappable).
     CGRect iconFrame = PGDrawnFrame(icon, self), text = PGDrawnFrame(quality, self);
-    CGFloat shift = PGShiftOf(holder) + (CGRectGetMinX(iconFrame) - PGPillGap - CGRectGetMaxX(text));
+    CGFloat slot = MAX(PGLabelSlot, CGRectGetWidth(text));
+    CGFloat slotMinX = CGRectGetMinX(iconFrame) - PGPillGap - slot;
+    CGFloat shift = PGShiftOf(holder) + (slotMinX + slot / 2.0 - CGRectGetMidX(text));
     PGSetShift(holder, MAX(0.0, shift));
     PGHideRoundGlass(quality, YES);
     PGHideRoundGlass(fullscreen, YES);
     if (fullscreenButton) PGHideRoundGlass(fullscreenButton, YES);
-    CGRect content = CGRectUnion(PGDrawnFrame(quality, self), PGDrawnFrame(icon, self));
+    CGRect content = CGRectUnion(CGRectMake(slotMinX, CGRectGetMinY(text), slot, CGRectGetHeight(text)), PGDrawnFrame(icon, self));
     CGFloat height = CGRectGetHeight(fullFrame);
     CGRect group = CGRectMake(CGRectGetMinX(content) - PGPillPadding, CGRectGetMidY(fullFrame) - height / 2.0,
                               CGRectGetWidth(content) + PGPillPadding * 2.0, height);
