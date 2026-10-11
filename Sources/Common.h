@@ -22,7 +22,7 @@ static inline BOOL TBHHookMethod(Class cls, NSString *selectorName, IMP replacem
 // Settings.m: feature switches (on unless switched off in YouTube's settings; read at launch).
 extern NSString *const YTGTopBarKey; // no top bar, status bar blur, large titles (HideTopBar.m)
 extern NSString *const YTGPlayerKey; // Liquid Glass player controls (PlayerGlass.m)
-extern NSString *const YTGSettingsFixKey; // YouTube settings close button under YTPlus's Liquid Glass (YTPlusSettingsFix.m)
+extern NSString *const YTGYTPlusFixesKey; // workarounds for YTPlus bugs (YTPlusFixes.m)
 BOOL YTGFeatureEnabled(NSString *key);
 // Settings.m: how search is shown (SearchButton.m).
 typedef NS_ENUM(NSInteger, YTGSearchStyle) { YTGSearchOff = 0, YTGSearchSeparate = 1, YTGSearchInTabBar = 2 };
