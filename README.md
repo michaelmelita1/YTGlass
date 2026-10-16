@@ -74,6 +74,7 @@ Pure Objective-C runtime swizzling, no CydiaSubstrate/ElleKit dependency. See `L
 
 ## Changelog
 
+- **0.1.0**: DeArrow titles and thumbnails, and hiding AI channels with the AiSList blocklist and warnlist (ported from YTKACE; all off by default); the tab bar is no longer cut off with Search set to Off or Integrated; YT Slide Up Animation renamed Slide Up animation.
 - **0.0.6**: YTPlus's player buttons (mute, sleep timer, menu) move into the top row and share one glass capsule with settings; the quality label and full screen button share one pill at the bottom; faster tab bar handling (Shorts checks skipped when there's no Shorts tab).
 - **0.0.5**: no slide-up animation when switching tabs (YT Slide Up Animation switch); Home's videos spaced like Subscriptions'; YTPlus Settings Fix renamed YTPlus Fixes; smoother scrolling.
 - **0.0.4**: a Settings item in YTPlus's tab bar menu opens YouTube's settings from any tab; new YTPlus Settings Fix switch makes the settings close button tappable again with YTPlus's Liquid Glass.
