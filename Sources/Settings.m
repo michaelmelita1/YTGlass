@@ -11,10 +11,22 @@ NSString *const YTGTopBarKey = @"YTGlass_HideTopBar";
 NSString *const YTGPlayerKey = @"YTGlass_PlayerGlass";
 NSString *const YTGSlideUpKey = @"YTGlass_NoSlideUpAnimation";
 NSString *const YTGYTPlusFixesKey = @"YTGlass_YTPlusSettingsFix"; // key kept from 0.0.4
+NSString *const YTGDeArrowTitlesKey = @"YTGlass_DeArrowTitles";
+NSString *const YTGDeArrowThumbnailsKey = @"YTGlass_DeArrowThumbnails";
+NSString *const YTGHideAIKey = @"YTGlass_HideAIChannels";
+NSString *const YTGHideSuspectedAIKey = @"YTGlass_HideSuspectedAIChannels";
+
+static BOOL YTGSwitchValue(NSString *key, BOOL fallback) {
+    id value = [NSUserDefaults.standardUserDefaults objectForKey:key];
+    return [value respondsToSelector:@selector(boolValue)] ? [value boolValue] : fallback;
+}
 
 BOOL YTGFeatureEnabled(NSString *key) {
-    id value = [NSUserDefaults.standardUserDefaults objectForKey:key];
-    return [value respondsToSelector:@selector(boolValue)] ? [value boolValue] : YES; // on unless switched off
+    return YTGSwitchValue(key, YES); // on unless switched off
+}
+
+BOOL YTGOptInEnabled(NSString *key) {
+    return YTGSwitchValue(key, NO); // off unless switched on (features that go online)
 }
 
 YTGSearchStyle YTGSearchMode(void) {
@@ -74,7 +86,7 @@ static NSArray *YTGOrderedCategories(id self, SEL _cmd) {
 
 #pragma mark - The page
 
-static id YTGSwitch(NSString *title, NSString *description, NSString *key) {
+static id YTGSwitch(NSString *title, NSString *description, NSString *key, BOOL optIn) {
     Class itemClass = NSClassFromString(@"YTSettingsSectionItem");
     SEL sel = NSSelectorFromString(@"switchItemWithTitle:titleDescription:accessibilityIdentifier:switchOn:switchBlock:settingItemId:");
     if (![itemClass respondsToSelector:sel]) return nil;
@@ -83,7 +95,7 @@ static id YTGSwitch(NSString *title, NSString *description, NSString *key) {
         return YES;
     };
     return ((id (*)(id, SEL, NSString *, NSString *, NSString *, BOOL, id, int))objc_msgSend)(
-        itemClass, sel, title, description, nil, YTGFeatureEnabled(key), block, 0);
+        itemClass, sel, title, description, nil, YTGSwitchValue(key, !optIn), block, 0);
 }
 
 // A plain row at the bottom of the page (tapping it does nothing).
@@ -139,13 +151,21 @@ static void YTGUpdateSection(id self, SEL _cmd, NSUInteger category, id entry) {
     NSArray *items = [@[
         YTGSearchPicker(self, delegate) ?: NSNull.null,
         YTGSwitch(@"Hide Navigation bar",
-                  @"Removes the navigation bar and styles it like a native app.", YTGTopBarKey) ?: NSNull.null,
+                  @"Removes the navigation bar and styles it like a native app.", YTGTopBarKey, NO) ?: NSNull.null,
         YTGSwitch(@"Liquid Glass player",
-                  @"Liquid Glass video player controls.", YTGPlayerKey) ?: NSNull.null,
-        YTGSwitch(@"YT Slide Up Animation",
-                  @"Disable the default animation when loading a new tab.", YTGSlideUpKey) ?: NSNull.null,
+                  @"Liquid Glass video player controls.", YTGPlayerKey, NO) ?: NSNull.null,
+        YTGSwitch(@"Slide Up animation",
+                  @"Disable the default animation when loading a new tab.", YTGSlideUpKey, NO) ?: NSNull.null,
         YTGSwitch(@"YTPlus Fixes",
-                  @"Fix the YT settings close button when Liquid Glass is enabled.", YTGYTPlusFixesKey) ?: NSNull.null,
+                  @"Fix the YT settings close button when Liquid Glass is enabled.", YTGYTPlusFixesKey, NO) ?: NSNull.null,
+        YTGSwitch(@"DeArrow titles",
+                  @"Replace video titles with DeArrow's community titles.", YTGDeArrowTitlesKey, YES) ?: NSNull.null,
+        YTGSwitch(@"DeArrow thumbnails",
+                  @"Replace thumbnails with DeArrow's chosen frames.", YTGDeArrowThumbnailsKey, YES) ?: NSNull.null,
+        YTGSwitch(@"Hide AI channels",
+                  @"Remove channels on the AiSList blocklist.", YTGHideAIKey, YES) ?: NSNull.null,
+        YTGSwitch(@"Hide suspected AI channels",
+                  @"Remove channels on the AiSList warnlist.", YTGHideSuspectedAIKey, YES) ?: NSNull.null,
         YTGNote(@"Restart YouTube to apply changes.") ?: NSNull.null,
         YTGNote(@"YTGlass " YTG_VERSION) ?: NSNull.null,
     ] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"self != %@", NSNull.null]];

@@ -23,8 +23,13 @@ static inline BOOL TBHHookMethod(Class cls, NSString *selectorName, IMP replacem
 extern NSString *const YTGTopBarKey; // no top bar, status bar blur, large titles (HideTopBar.m)
 extern NSString *const YTGPlayerKey; // Liquid Glass player controls (PlayerGlass.m)
 extern NSString *const YTGSlideUpKey; // no slide-up animation when switching tabs (TabAnimation.m)
+extern NSString *const YTGDeArrowTitlesKey;     // DeArrow community titles (DeArrow.m)
+extern NSString *const YTGDeArrowThumbnailsKey; // DeArrow thumbnails (DeArrow.m)
+extern NSString *const YTGHideAIKey;            // AiSList blocklist (AiSList.m)
+extern NSString *const YTGHideSuspectedAIKey;   // AiSList warnlist (AiSList.m)
 extern NSString *const YTGYTPlusFixesKey; // workarounds for YTPlus bugs (YTPlusFixes.m)
 BOOL YTGFeatureEnabled(NSString *key);
+BOOL YTGOptInEnabled(NSString *key); // off unless switched on
 // Settings.m: how search is shown (SearchButton.m).
 typedef NS_ENUM(NSInteger, YTGSearchStyle) { YTGSearchOff = 0, YTGSearchSeparate = 1, YTGSearchInTabBar = 2 };
 YTGSearchStyle YTGSearchMode(void);

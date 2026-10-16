@@ -20,6 +20,10 @@ Liquid Glass tweaks for YouTube builds with **YTPlus 6.0** and its Liquid Glass 
 - **Even spacing on Home**: Home's blank spacer rows (YouTube's own, and the ones YTPlus's ad blocking leaves
   behind) are collapsed, so its videos are spaced like Subscriptions'.
 - **Settings in YTPlus's tab bar menu**: a Settings item opens YouTube's settings from any tab.
+- **DeArrow** (off by default): replaces video titles and/or thumbnails in feeds with [DeArrow](https://dearrow.ajay.app)'s
+  community ones.
+- **Hide AI channels** (off by default): removes channels on the [AiSList](https://aisloplist.com) blocklist and/or
+  warnlist from feeds and search.
 - **YTPlus fixes**: workarounds for YTPlus bugs, kept separate so they can go once YTPlus fixes them. Currently:
   the settings close button, which YTPlus's Liquid Glass leaves with no width (drawn over the title, untappable).
 
@@ -33,8 +37,9 @@ YouTube:
   item at the end of YTPlus's tab bar)
 - **Hide Navigation bar** (the top bar, with the status bar blur and large titles)
 - **Liquid Glass player**
-- **YT Slide Up Animation** (on: the animation is disabled)
+- **Slide Up animation** (on: the animation is disabled)
 - **YTPlus Fixes**
+- **DeArrow titles**, **DeArrow thumbnails**, **Hide AI channels**, **Hide suspected AI channels** (off by default; they go online)
 
 Hiding the tab bar on scroll, Home's spacing and the Settings menu item are always on.
 
@@ -57,10 +62,15 @@ Hiding the tab bar on scroll, Home's spacing and the Settings menu item are alwa
   sends YouTube's `+[YTICommand applicationSettingsNavigationEndpoint]` command.
 - `Sources/YTPlusFixes.m`: workarounds for YTPlus bugs; the settings close button (`id.ui.browse.close.button`)
   gets a square size when it has none.
+- `Sources/DeArrow.m`: ported from YTKACE v1.1.3; reads the video ID from each feed thumbnail's URL
+  (`ELMImageNode`), asks DeArrow's branding API, sets the DeArrow thumbnail on the node and the title on the card's
+  title `ELMTextNode`. Results are cached; requests are limited to 4 at once and 90 a minute.
+- `Sources/AiSList.m`: ported from YTKACE v1.1.3; downloads the AiSList lists every 4 hours and leaves out feed
+  sections (`YTInnerTubeCollectionViewController`) whose data names a listed channel handle or ID.
 - `Sources/Settings.m`: the settings page (YouTube's own settings framework: a `'ytgl'` category added to `+[YTAppSettingsPresentationData settingsCategoryOrder]` and to YouGroupSettings' `+[YTSettingsGroupData tweaks]`, filled in `-[YTSettingsSectionItemManager updateSectionForCategory:withEntry:]`). Switches are stored in `NSUserDefaults` (`YTGlass_*` keys) and read by each feature at launch.
 - `Sources/Common.h`: the shared runtime hook helper and the functions the files share.
 
-Pure Objective-C runtime swizzling, no CydiaSubstrate/ElleKit dependency. See `LICENSE` for both MIT notices.
+Pure Objective-C runtime swizzling, no CydiaSubstrate/ElleKit dependency. See `LICENSE` for the MIT notices and the DeArrow and AiSList data licenses.
 
 ## Changelog
 
