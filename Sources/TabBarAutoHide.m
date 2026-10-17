@@ -226,31 +226,33 @@ static void TBHMiniCheck(void) {
     if (mini && bar) TBHMoveMini(mini, TBHBarHidden(bar), NO);
 }
 
-// Being dragged by the user (a pan on it or on the view that moves it).
-static BOOL TBHMiniDragged(UIView *mini) {
-    for (UIView *view = mini; view != nil && view != mini.window; view = view.superview) {
-        for (UIGestureRecognizer *gesture in view.gestureRecognizers) {
-            if (![gesture isKindOfClass:UIPanGestureRecognizer.class]) continue;
-            if (gesture.state == UIGestureRecognizerStateBegan || gesture.state == UIGestureRecognizerStateChanged) return YES;
-        }
-        if (view != mini) break; // the mini player and its holder
-    }
-    return NO;
-}
-
 static void TBHMiniSetCenter(UIView *self, SEL _cmd, CGPoint center) {
     ((void (*)(id, SEL, CGPoint))OriginalMiniSetCenter)(self, _cmd, center);
     TBHMini = self;
-    // Picked up while moved down with the bar: it goes back under the finger (placed again once it's let go).
-    if (fabs(self.transform.ty) > 0.5 && TBHMiniDragged(self)) {
+    // Moved away from the bottom (dragged up): our shift goes at once, so it stays where YouTube puts it.
+    UIView *bar = TBHBar;
+    if (bar && fabs(self.transform.ty) > 0.5 && fabs(TBHMiniShift(self, bar, YES)) < 0.5) {
         [self.layer removeAnimationForKey:@"ytglass.follow"];
-        [UIView animateWithDuration:0.15 delay:0.0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
-                         animations:^{ self.transform = CGAffineTransformIdentity; } completion:nil];
+        self.transform = CGAffineTransformIdentity;
     }
     TBHMiniMovedAt = CACurrentMediaTime();
     if (TBHMiniCheckPending) return;
     TBHMiniCheckPending = YES;
     TBHMiniCheck();
+}
+
+// YouTube moves it by frame while it's dragged; with our shift on, that frame would include it. YouTube's frame is
+// taken as where it wants the mini player (its centre), and our shift goes on top as usual.
+static IMP OriginalMiniSetFrame;
+
+static void TBHMiniSetFrame(UIView *self, SEL _cmd, CGRect frame) {
+    if (CGAffineTransformIsIdentity(self.transform)) {
+        ((void (*)(id, SEL, CGRect))OriginalMiniSetFrame)(self, _cmd, frame);
+        TBHMiniSetCenter(self, @selector(setCenter:), self.center); // noted like any other move
+        return;
+    }
+    self.bounds = CGRectMake(0.0, 0.0, CGRectGetWidth(frame), CGRectGetHeight(frame));
+    self.center = CGPointMake(CGRectGetMidX(frame), CGRectGetMidY(frame));
 }
 
 static void TBHMiniDidMoveToWindow(UIView *self, SEL _cmd) {
@@ -429,6 +431,7 @@ __attribute__((constructor)) static void TBHInit(void) {
         TBHHookMethod(appView, @"showPivotBar", (IMP)TBHShowPivotBar, &OriginalShowPivotBar);
         Class mini = NSClassFromString(@"YTWatchFloatingMiniplayerWithPersistentControlsView");
         TBHHookMethod(mini, @"setCenter:", (IMP)TBHMiniSetCenter, &OriginalMiniSetCenter);
+        TBHHookMethod(mini, @"setFrame:", (IMP)TBHMiniSetFrame, &OriginalMiniSetFrame);
         TBHHookMethod(mini, @"didMoveToWindow", (IMP)TBHMiniDidMoveToWindow, &OriginalMiniDidMoveToWindow);
     }
 }
