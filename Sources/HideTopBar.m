@@ -440,7 +440,6 @@ static CGFloat const THBTitleArea = 52.0;
 static CGFloat const THBHomeLeadingSpace = 8.0;  // Home's usual space above its first video, until it's measured
 static const void *THBLeadingKey = &THBLeadingKey;       // Home list -> NSNumber: space above its first video
 static const void *THBTitleKey = &THBTitleKey;           // combo -> UILabel
-static const void *THBSettingsKey = &THBSettingsKey;     // combo -> UIButton (TEMPORARY: settings on Home)
 static const void *THBTitleTextKey = &THBTitleTextKey;   // combo -> NSString (@"" for none), decided once
 static const void *THBTitleTabKey = &THBTitleTabKey;     // combo -> NSString: the tab whose title it shows
 static const void *THBListTargetKey = &THBListTargetKey; // list -> NSNumber: the top inset we keep
@@ -561,16 +560,6 @@ static void THBListLayout(UICollectionView *self, SEL _cmd) {
     if (measured >= 0.0 && fabs(known.doubleValue - measured) > 0.5) [THBCombo(self) setNeedsLayout];
 }
 
-// TEMPORARY: a gear beside Home's title that opens YouTube's settings.
-@interface THBSettingsTarget : NSObject
-@end
-
-@implementation THBSettingsTarget
-- (void)tapped:(__unused UIButton *)button {
-    YTGOpenSettings();
-}
-@end
-
 static void THBArrangePage(UIView *combo) {
     UIWindow *window = combo.window;
     UIView *child = THBCall(combo, @"childView");
@@ -623,8 +612,7 @@ static void THBArrangePage(UIView *combo) {
         restTop = list.adjustedContentInset.top;
     }
 
-    UIButton *settings = objc_getAssociatedObject(combo, THBSettingsKey);
-    if (title == nil) { label.hidden = YES; settings.hidden = YES; return; }
+    if (title == nil) { label.hidden = YES; return; }
     if (label == nil) {
         label = [UILabel new];
         label.font = [UIFont systemFontOfSize:34.0 weight:UIFontWeightBold];
@@ -641,26 +629,9 @@ static void THBArrangePage(UIView *combo) {
     // In the list's content, just above the first row, never higher than right below the clock.
     CGFloat minY = status - listTop - restTop; // content y that sits right below the clock at rest
     CGFloat y = MAX(-THBTitleArea, minY);
-    BOOL home = [objc_getAssociatedObject(combo, THBTitleTabKey) isEqualToString:@"FEwhat_to_watch"];
-    CGRect frame = CGRectMake(20.0, y + 2.0, CGRectGetWidth(list.bounds) - 40.0 - (home ? 44.0 : 0.0), 41.0);
+    CGRect frame = CGRectMake(20.0, y + 2.0, CGRectGetWidth(list.bounds) - 40.0, 41.0);
     if (!CGRectEqualToRect(label.frame, frame)) label.frame = frame;
     if (list.subviews.lastObject != label) [list bringSubviewToFront:label];
-    if (home && settings == nil) {
-        static THBSettingsTarget *target;
-        if (target == nil) target = [THBSettingsTarget new];
-        settings = [UIButton systemButtonWithImage:[UIImage systemImageNamed:@"gearshape"
-            withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:20.0 weight:UIImageSymbolWeightMedium]] target:target action:@selector(tapped:)];
-        settings.tintColor = UIColor.labelColor;
-        settings.accessibilityLabel = @"Settings";
-        objc_setAssociatedObject(combo, THBSettingsKey, settings, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    settings.hidden = !home;
-    if (home) {
-        if (settings.superview != list) [list addSubview:settings];
-        CGRect gear = CGRectMake(CGRectGetMaxX(frame) + 4.0, CGRectGetMidY(frame) - 20.0, 40.0, 40.0);
-        if (!CGRectEqualToRect(settings.frame, gear)) settings.frame = gear;
-        if (list.subviews.lastObject != settings) [list bringSubviewToFront:settings];
-    }
 }
 
 #pragma mark - Layout hooks

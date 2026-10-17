@@ -19,7 +19,7 @@ static NSString *MSTabBarTitle(void) {
     return title;
 }
 
-void YTGOpenSettings(void) {
+static void MSOpenSettings(void) {
     Class commandClass = NSClassFromString(@"YTICommand");
     Class eventClass = NSClassFromString(@"YTCommandResponderEvent");
     SEL commandSel = NSSelectorFromString(@"applicationSettingsNavigationEndpoint");
@@ -50,7 +50,7 @@ static NSArray *MSWithSettings(NSArray *children) {
     if (!ytplusMenu) return children;
     UIAction *settings = [UIAction actionWithTitle:@"Settings" image:[UIImage systemImageNamed:@"gearshape"]
                                         identifier:MSActionIdentifier handler:^(__unused UIAction *action) {
-        dispatch_async(dispatch_get_main_queue(), ^{ YTGOpenSettings(); });
+        dispatch_async(dispatch_get_main_queue(), ^{ MSOpenSettings(); });
     }];
     return [children arrayByAddingObject:settings];
 }

@@ -82,11 +82,9 @@ switch at launch, so changes apply after a restart (the page's bottom row says s
 
 ## Planned
 
-- Liquid Glass tab bar (`Sources/GlassTabBar.m`, 0.1.1): iOS 26's own tab bar, not an imitation. A real
-  UITabBarController sits inside YouTube's `YTPivotBarView` with a UITab per YouTube tab (YouTube's icon and title) and
-  the system UISearchTab (Search: Separate; it merges natively) or a plain Search tab (Integrated); YouTube's buttons
-  stay underneath, invisible, and are driven by it. Independent of YTPlus (never touches it; YTPlus's Liquid Glass tab
-  bar is switched off by hand). Michael wants native iOS behaviour, not hand-made imitations of it. The earlier
-  hand-built version (YTKACE's lens) is on branch `wip/glass-tab-bar`.
-- 0.1.1 is rebuilt from 0.0.6 because 0.1.0 made Home's scrolling slower; 0.1.0's DeArrow, AiSList, Off/Integrated
-  tab bar unclipping and the Slide Up animation rename are not in it.
+- Liquid Glass tab bar: shelved again. Two attempts, both on branches: `wip/glass-tab-bar` (hand-built, YTKACE's
+  lens) and `wip/native-tab-bar` (a real UITabBarController with UITabs inside YouTube's bar: icons didn't show and
+  the search tab sat inside the bar). Michael wants native iOS behaviour, not hand-made imitations of it.
+- 0.1.1 is 0.0.6 plus the mini player fix (it follows the tab bar, TabBarAutoHide.m), because 0.1.0 made Home's
+  scrolling slower; 0.1.0's DeArrow, AiSList, Off/Integrated tab bar unclipping and the Slide Up animation rename
+  are not in it.
