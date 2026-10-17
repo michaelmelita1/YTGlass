@@ -282,6 +282,8 @@ static BOOL TBHEligible(UIScrollView *scrollView, UIView *bar) {
     BOOL hidden = TBHBarHidden(bar);
     CGFloat progress = TBHProgress;
     CGFloat velocity = -[pan velocityInView:scrollView].y;
+    CGFloat end = scrollView.contentSize.height + scrollView.adjustedContentInset.bottom - CGRectGetHeight(scrollView.bounds);
+    if (scrollView.contentOffset.y >= end - 0.5) return; // let go past the end of the list: leave the bar as it is
     if (pan.state == UIGestureRecognizerStateEnded && fabs(velocity) > 50.0) {
         CGFloat rate = scrollView.decelerationRate;
         CGFloat travel = velocity / 1000.0 * rate / MAX(0.0001, 1.0 - rate);
@@ -345,6 +347,12 @@ static void TBHScrollSetContentOffset(UIScrollView *receiver, SEL selector, CGPo
         return;
     }
     if (!userDriven) { // YouTube moving the feed by itself (restoring a position etc.)
+        TBHLastOffset = y;
+        return;
+    }
+    // Past the end of the list (it bounces back, or new videos are still loading in): not a scroll up.
+    CGFloat end = receiver.contentSize.height + receiver.adjustedContentInset.bottom - CGRectGetHeight(receiver.bounds);
+    if (y >= end - 0.5 || TBHLastOffset >= end - 0.5) {
         TBHLastOffset = y;
         return;
     }
