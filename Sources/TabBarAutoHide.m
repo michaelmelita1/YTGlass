@@ -138,8 +138,8 @@ static void TBHSetBarHidden(UIView *bar, BOOL hidden) {
 #pragma mark - The mini player follows the bar
 
 // YouTube doesn't always move its floating mini player when the bar hides (it stayed put with YTPlus's tab bar
-// set to three tabs), leaving a gap below it. Whoever hides or shows the bar, the mini player follows it down by the
-// bar's height above the home indicator, and back, while it's docked just above the bar (not dragged to the top).
+// set to three tabs), leaving a gap below it. Whoever hides or shows the bar, the mini player is moved down by the
+// bar's height above the home indicator, or back, while it's docked just above the bar (not dragged to the top).
 static __weak UIView *TBHMini;
 
 static UIView *TBHFindMini(UIView *root) {
@@ -156,64 +156,23 @@ static UIView *TBHFindMini(UIView *root) {
     return nil;
 }
 
-// Follows the bar frame by frame while it animates (its on-screen layer, not its final frame), eased, so the mini
-// player moves with it rather than on a timing of its own.
-@interface TBHMiniFollower : NSObject
-@property (nonatomic, weak) UIView *mini, *bar;
-@property (nonatomic, assign) CGFloat shift; // the mini player's move with the bar fully hidden (0: stays put)
-@property (nonatomic, assign) CFTimeInterval until;
-@property (nonatomic, strong) CADisplayLink *link;
-@end
-
-@implementation TBHMiniFollower
-
-- (void)tick:(CADisplayLink *)link {
-    UIView *mini = self.mini, *bar = self.bar;
-    UIWindow *window = bar.window;
-    if (mini == nil || window == nil) { [self stop]; return; }
-    CALayer *shown = bar.layer.presentationLayer ?: bar.layer;
-    CALayer *windowLayer = window.layer.presentationLayer ?: window.layer;
-    CGFloat top = [shown convertPoint:CGPointZero toLayer:windowLayer].y;
-    CGFloat height = CGRectGetHeight(bar.bounds), shownTop = CGRectGetHeight(window.bounds) - height;
-    CGFloat progress = height > 0.0 ? MAX(0.0, MIN(1.0, (top - shownTop) / height)) : 0.0; // 0 shown, 1 hidden
-    // Eased after the bar rather than locked to it (YouTube's own mini player moves softly).
-    CGFloat target = progress * self.shift, current = mini.transform.ty;
-    CGFloat next = fabs(target - current) < 0.5 ? target : current + (target - current) * 0.22;
-    mini.transform = CGAffineTransformMakeTranslation(0.0, next);
-    if (link.timestamp > self.until && next == target) [self stop];
-}
-
-- (void)stop {
-    [self.link invalidate];
-    self.link = nil;
-}
-
-@end
-
 static void TBHMoveMini(UIView *appView, BOOL barHidden) {
     UIView *bar = TBHBar;
     UIView *mini = appView.window ? TBHFindMini(appView.window) : nil;
     if (mini == nil || bar == nil) return;
-    static TBHMiniFollower *follower;
-    if (follower == nil) follower = [TBHMiniFollower new];
+    CGFloat shift = 0.0;
     if (barHidden) {
-        // Where YouTube put it (center ignores the transform) against where the bar sits when shown. Only while it's
-        // still docked right above the bar: if YouTube moved it itself, it's already lower.
+        // Where YouTube put it (center ignores the transform) against where the bar sits when shown.
         CGPoint center = [mini.superview convertPoint:mini.center toView:nil];
         CGFloat bottom = center.y + CGRectGetHeight(mini.bounds) / 2.0;
         CGFloat barTop = CGRectGetHeight(appView.window.bounds) - CGRectGetHeight(bar.bounds);
-        BOOL docked = bottom > barTop - 40.0 && bottom <= barTop + 4.0;
-        follower.shift = docked ? MAX(0.0, CGRectGetHeight(bar.bounds) - appView.window.safeAreaInsets.bottom) : 0.0;
-    } else if (CGAffineTransformIsIdentity(mini.transform)) {
-        return;
+        // Only while it's still docked right above the bar: if YouTube moved it itself, it's already lower.
+        if (bottom > barTop - 40.0 && bottom <= barTop + 4.0) shift = CGRectGetHeight(bar.bounds) - appView.window.safeAreaInsets.bottom;
     }
-    follower.mini = mini;
-    follower.bar = bar;
-    follower.until = CACurrentMediaTime() + 0.8; // longer than YouTube's bar animation
-    if (follower.link == nil) {
-        follower.link = [CADisplayLink displayLinkWithTarget:follower selector:@selector(tick:)];
-        [follower.link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
-    }
+    CGAffineTransform move = CGAffineTransformMakeTranslation(0.0, MAX(0.0, shift));
+    if (CGAffineTransformEqualToTransform(mini.transform, move)) return;
+    [UIView animateWithDuration:0.25 delay:0.0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
+                     animations:^{ mini.transform = move; } completion:nil];
 }
 
 static IMP OriginalHidePivotBar, OriginalShowPivotBar;
@@ -386,10 +345,6 @@ __attribute__((constructor)) static void TBHInit(void) {
         TBHHookMethod(appView, @"hidePivotBar", (IMP)TBHHidePivotBar, &OriginalHidePivotBar);
         TBHHookMethod(appView, @"showPivotBar", (IMP)TBHShowPivotBar, &OriginalShowPivotBar);
     }
-}
-
-BOOL TBHPivotItemSelected(UIView *item) {
-    return TBHItemSelected(item);
 }
 
 UIView *TBHFindBar(void) {

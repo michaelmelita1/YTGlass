@@ -40,7 +40,7 @@ static void TBSFindSearchButtons(UIView *view, NSMutableArray<UIView *> *found) 
     for (UIView *subview in view.subviews) TBSFindSearchButtons(subview, found);
 }
 
-void YTGOpenSearch(UIView *from) {
+static void TBSOpenSearch(UIView *from) {
     UIWindow *window = from.window;
     if (window == nil) return;
     NSMutableArray<UIView *> *found = [NSMutableArray array];
@@ -64,7 +64,7 @@ void YTGOpenSearch(UIView *from) {
 
 @implementation TBSSearchTarget
 - (void)tapped:(UIButton *)button {
-    YTGOpenSearch(button);
+    TBSOpenSearch(button);
 }
 @end
 
@@ -345,7 +345,7 @@ static void TBSDidSelect(id self, SEL _cmd, UITabBar *tabBar, UITabBarItem *item
     if (TBSIsSearchItem(item)) {
         UITabBarItem *last = objc_getAssociatedObject(tabBar, TBSLastKey);
         if (last && [tabBar.items containsObject:last]) ((void (*)(id, SEL, id))OriginalSetSelectedItem)(tabBar, @selector(setSelectedItem:), last);
-        YTGOpenSearch(tabBar);
+        TBSOpenSearch(tabBar);
         return;
     }
     IMP original = NULL;
