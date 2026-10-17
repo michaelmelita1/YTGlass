@@ -137,25 +137,11 @@ static void TBHSetBarHidden(UIView *bar, BOOL hidden) {
 
 #pragma mark - The mini player follows the bar
 
-// YouTube doesn't always move its floating mini player when the bar hides (it stayed put with YTPlus's tab bar
-// set to three tabs), leaving a gap below it. Whoever hides or shows the bar, the mini player is moved down by the
+// YouTube only moves its floating mini player for its own hiding of the bar (on Home), not for ours on the other
+// pages, which left a gap below it. Whoever hides or shows the bar, the mini player is moved down by the
 // bar's height above the home indicator, or back, with the bar's own animation, while it's docked at the bottom (not
 // dragged to the top); when YouTube docks it itself (after a drag) it's placed again for where the bar is.
-static __weak UIView *TBHMini;
-
-static UIView *TBHFindMini(UIView *root) {
-    UIView *mini = TBHMini;
-    if (mini.window == root.window && mini.window != nil) return mini;
-    static Class miniClass;
-    if (miniClass == Nil) miniClass = NSClassFromString(@"YTWatchFloatingMiniplayerWithPersistentControlsView");
-    if (miniClass == Nil) return nil;
-    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:root];
-    for (NSUInteger i = 0; i < queue.count && i < 3000; i++) {
-        if ([queue[i] isKindOfClass:miniClass]) return (TBHMini = queue[i]);
-        [queue addObjectsFromArray:queue[i].subviews];
-    }
-    return nil;
-}
+static __weak UIView *TBHMini; // the mini player, recorded as it appears and moves (YTWatchFloating... hooks)
 
 // The animation YouTube just added to the bar's position (on the bar or the view it moves), if any.
 static CAAnimation *TBHBarAnimation(UIView *bar) {
@@ -215,31 +201,51 @@ static IMP OriginalHidePivotBar, OriginalShowPivotBar;
 
 static void TBHHidePivotBar(UIView *self, SEL _cmd) {
     ((void (*)(id, SEL))OriginalHidePivotBar)(self, _cmd);
-    if (self.window) TBHMoveMini(TBHFindMini(self.window), YES, YES);
+    if (TBHMini.window == self.window) TBHMoveMini(TBHMini, YES, YES);
 }
 
 static void TBHShowPivotBar(UIView *self, SEL _cmd) {
     ((void (*)(id, SEL))OriginalShowPivotBar)(self, _cmd);
-    if (self.window) TBHMoveMini(TBHFindMini(self.window), NO, YES);
+    if (TBHMini.window == self.window) TBHMoveMini(TBHMini, NO, YES);
 }
 
 // YouTube moved the mini player (it docked after a drag, or appeared): placed again for where the bar is, once it
-// has settled (not while it's being dragged).
-static IMP OriginalMiniSetCenter;
-static NSUInteger TBHMiniMoves;
+// has settled (one check, pushed back while it keeps moving, so not while it's being dragged).
+static IMP OriginalMiniSetCenter, OriginalMiniDidMoveToWindow;
+static CFTimeInterval TBHMiniMovedAt;
+static BOOL TBHMiniCheckPending;
+
+static void TBHMiniCheck(void) {
+    CFTimeInterval wait = TBHMiniMovedAt + 0.12 - CACurrentMediaTime();
+    if (wait > 0.0) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ TBHMiniCheck(); });
+        return;
+    }
+    TBHMiniCheckPending = NO;
+    UIView *mini = TBHMini, *bar = TBHBar;
+    if (mini && bar) TBHMoveMini(mini, TBHBarHidden(bar), NO);
+}
 
 static void TBHMiniSetCenter(UIView *self, SEL _cmd, CGPoint center) {
     ((void (*)(id, SEL, CGPoint))OriginalMiniSetCenter)(self, _cmd, center);
-    NSUInteger move = ++TBHMiniMoves;
-    __weak UIView *weakMini = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.12 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        UIView *mini = weakMini, *bar = TBHBar;
-        if (mini == nil || bar == nil || move != TBHMiniMoves) return;
-        TBHMoveMini(mini, TBHBarHidden(bar), NO);
-    });
+    TBHMini = self;
+    TBHMiniMovedAt = CACurrentMediaTime();
+    if (TBHMiniCheckPending) return;
+    TBHMiniCheckPending = YES;
+    TBHMiniCheck();
+}
+
+static void TBHMiniDidMoveToWindow(UIView *self, SEL _cmd) {
+    ((void (*)(id, SEL))OriginalMiniDidMoveToWindow)(self, _cmd);
+    if (self.window) TBHMini = self;
 }
 
 #pragma mark - Scroll tracking (from YTKACE)
+
+// The scroll offset at the end of the list (past it, the list is bouncing back or loading more).
+static CGFloat TBHListEnd(UIScrollView *scrollView) {
+    return scrollView.contentSize.height + scrollView.adjustedContentInset.bottom - CGRectGetHeight(scrollView.bounds);
+}
 
 static CGFloat const TBHDistance = 64.0; // points of scrolling down before the bar hides
 static __weak UIScrollView *TBHScroll;      // the feed currently being followed
@@ -282,8 +288,7 @@ static BOOL TBHEligible(UIScrollView *scrollView, UIView *bar) {
     BOOL hidden = TBHBarHidden(bar);
     CGFloat progress = TBHProgress;
     CGFloat velocity = -[pan velocityInView:scrollView].y;
-    CGFloat end = scrollView.contentSize.height + scrollView.adjustedContentInset.bottom - CGRectGetHeight(scrollView.bounds);
-    if (scrollView.contentOffset.y >= end - 0.5) return; // let go past the end of the list: leave the bar as it is
+    if (scrollView.contentOffset.y >= TBHListEnd(scrollView) - 0.5) return; // let go past the end of the list: leave the bar as it is
     if (pan.state == UIGestureRecognizerStateEnded && fabs(velocity) > 50.0) {
         CGFloat rate = scrollView.decelerationRate;
         CGFloat travel = velocity / 1000.0 * rate / MAX(0.0001, 1.0 - rate);
@@ -351,7 +356,7 @@ static void TBHScrollSetContentOffset(UIScrollView *receiver, SEL selector, CGPo
         return;
     }
     // Past the end of the list (it bounces back, or new videos are still loading in): not a scroll up.
-    CGFloat end = receiver.contentSize.height + receiver.adjustedContentInset.bottom - CGRectGetHeight(receiver.bounds);
+    CGFloat end = TBHListEnd(receiver);
     if (y >= end - 0.5 || TBHLastOffset >= end - 0.5) {
         TBHLastOffset = y;
         return;
@@ -404,7 +409,9 @@ __attribute__((constructor)) static void TBHInit(void) {
         Class appView = NSClassFromString(@"YTAppView");
         TBHHookMethod(appView, @"hidePivotBar", (IMP)TBHHidePivotBar, &OriginalHidePivotBar);
         TBHHookMethod(appView, @"showPivotBar", (IMP)TBHShowPivotBar, &OriginalShowPivotBar);
-        TBHHookMethod(NSClassFromString(@"YTWatchFloatingMiniplayerWithPersistentControlsView"), @"setCenter:", (IMP)TBHMiniSetCenter, &OriginalMiniSetCenter);
+        Class mini = NSClassFromString(@"YTWatchFloatingMiniplayerWithPersistentControlsView");
+        TBHHookMethod(mini, @"setCenter:", (IMP)TBHMiniSetCenter, &OriginalMiniSetCenter);
+        TBHHookMethod(mini, @"didMoveToWindow", (IMP)TBHMiniDidMoveToWindow, &OriginalMiniDidMoveToWindow);
     }
 }
 

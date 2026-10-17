@@ -48,6 +48,12 @@ static UIView *PGMakeGlass(void) {
     return glass;
 }
 
+static void PGRound(UIView *glass, CGFloat radius) {
+    SEL radiusSel = NSSelectorFromString(@"setCornerRadius:");
+    if ([glass respondsToSelector:radiusSel]) ((void (*)(id, SEL, CGFloat))objc_msgSend)(glass, radiusSel, radius);
+    else { glass.layer.cornerRadius = radius; glass.clipsToBounds = YES; }
+}
+
 static void PGRemoveGlass(UIButton *button) {
     UIView *glass = objc_getAssociatedObject(button, PGGlassKey);
     if (glass.superview) [glass removeFromSuperview];
@@ -65,9 +71,7 @@ static void PGPlaceGlass(UIButton *button) {
     CGRect frame = CGRectMake(CGRectGetMidX(bounds) - diameter / 2.0, CGRectGetMidY(bounds) - diameter / 2.0, diameter, diameter);
     if (!CGRectEqualToRect(glass.frame, frame)) {
         glass.frame = frame;
-        SEL radiusSel = NSSelectorFromString(@"setCornerRadius:");
-        if ([glass respondsToSelector:radiusSel]) ((void (*)(id, SEL, CGFloat))objc_msgSend)(glass, radiusSel, diameter / 2.0);
-        else { glass.layer.cornerRadius = diameter / 2.0; glass.clipsToBounds = YES; }
+        PGRound(glass, diameter / 2.0);
     }
     if (glass.superview != button) [button insertSubview:glass atIndex:0];
     else if (button.subviews.firstObject != glass) [button sendSubviewToBack:glass];
@@ -151,9 +155,7 @@ static CGRect PGGroupYTPlusRow(UIView *overlay, Class buttonClass) {
     CGRect frame = [overlay convertRect:group toView:settings];
     if (!CGRectEqualToRect(capsule.frame, frame)) {
         capsule.frame = frame;
-        SEL radiusSel = NSSelectorFromString(@"setCornerRadius:");
-        if ([capsule respondsToSelector:radiusSel]) ((void (*)(id, SEL, CGFloat))objc_msgSend)(capsule, radiusSel, height / 2.0);
-        else { capsule.layer.cornerRadius = height / 2.0; capsule.clipsToBounds = YES; }
+        PGRound(capsule, height / 2.0);
     }
     if (capsule.superview != settings) [settings insertSubview:capsule atIndex:0];
     else if (settings.subviews.firstObject != capsule) [settings sendSubviewToBack:capsule];
@@ -170,6 +172,7 @@ static const void *PGMovedKey = &PGMovedKey;      // full screen button view -> 
 
 @interface PGWeak : NSObject
 @property (nonatomic, weak) UIView *view;
+@property (nonatomic, weak) UIView *quality; // the quality label found last, kept while it's still in place
 @end
 
 @implementation PGWeak
@@ -293,6 +296,13 @@ static void PGHideRoundGlass(UIView *button, BOOL hide) {
     }
 }
 
+// A button on the full screen button's line, just left of it (where YouTube put it, without our shift).
+static BOOL PGQualityInPlace(UIView *button, UIView *wrapper, UIView *bar, CGRect fullFrame) {
+    CGRect frame = CGRectOffset([button convertRect:button.bounds toView:bar], -PGShiftOf(wrapper), 0.0);
+    return fabs(CGRectGetMidY(frame) - CGRectGetMidY(fullFrame)) < 4.0 && CGRectGetMaxX(frame) <= CGRectGetMinX(fullFrame) + 0.5 &&
+           CGRectGetMinX(fullFrame) - CGRectGetMaxX(frame) < 24.0;
+}
+
 static IMP OriginalBarContainerLayout;
 
 static void PGBarContainerLayout(UIView *self, SEL _cmd) {
@@ -309,6 +319,16 @@ static void PGBarContainerLayout(UIView *self, SEL _cmd) {
     UIView *quality = nil, *holder = nil;
     PGWeak *moved = objc_getAssociatedObject(fullscreen, PGMovedKey);
     UIView *root = self.superview ?: self;
+    // The label found last time, if it's still there (the bar lays out constantly during playback: no search then).
+    UIView *known = moved.quality;
+    if (known && !known.hidden && known.window == self.window && [known isDescendantOfView:root]) {
+        UIView *wrapper = known;
+        while (wrapper.superview && wrapper.superview != root && CGRectGetWidth(wrapper.superview.bounds) < 60.0) wrapper = wrapper.superview;
+        if (PGQualityInPlace(known, wrapper, self, fullFrame)) {
+            quality = known;
+            holder = wrapper;
+        }
+    }
     NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:root];
     for (NSUInteger i = 0; i < queue.count && i < 300 && quality == nil; i++) {
         UIView *view = queue[i];
@@ -316,10 +336,7 @@ static void PGBarContainerLayout(UIView *self, SEL _cmd) {
         if (![view isKindOfClass:buttonClass]) { [queue addObjectsFromArray:view.subviews]; continue; }
         UIView *wrapper = view;
         while (wrapper.superview && wrapper.superview != root && CGRectGetWidth(wrapper.superview.bounds) < 60.0) wrapper = wrapper.superview;
-        CGRect frame = [view convertRect:view.bounds toView:self];
-        frame = CGRectOffset(frame, -PGShiftOf(wrapper), 0.0); // where YouTube put it
-        if (fabs(CGRectGetMidY(frame) - CGRectGetMidY(fullFrame)) < 4.0 && CGRectGetMaxX(frame) <= CGRectGetMinX(fullFrame) + 0.5 &&
-            CGRectGetMinX(fullFrame) - CGRectGetMaxX(frame) < 24.0) {
+        if (PGQualityInPlace(view, wrapper, self, fullFrame)) {
             quality = view;
             holder = wrapper;
         }
@@ -330,6 +347,7 @@ static void PGBarContainerLayout(UIView *self, SEL _cmd) {
         objc_setAssociatedObject(fullscreen, PGMovedKey, moved, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     moved.view = holder;
+    moved.quality = quality;
     UIView *pill = objc_getAssociatedObject(fullscreen, PGPillKey);
     UIView *fullscreenButton = PGFindClass(fullscreen, buttonClass, 2);
     if (quality == nil) {
@@ -361,9 +379,7 @@ static void PGBarContainerLayout(UIView *self, SEL _cmd) {
     CGRect frame = [self convertRect:group toView:fullscreen];
     if (!CGRectEqualToRect(pill.frame, frame)) {
         pill.frame = frame;
-        SEL radiusSel = NSSelectorFromString(@"setCornerRadius:");
-        if ([pill respondsToSelector:radiusSel]) ((void (*)(id, SEL, CGFloat))objc_msgSend)(pill, radiusSel, height / 2.0);
-        else { pill.layer.cornerRadius = height / 2.0; pill.clipsToBounds = YES; }
+        PGRound(pill, height / 2.0);
     }
     pill.hidden = NO;
     if (pill.superview != fullscreen) [fullscreen insertSubview:pill atIndex:0];

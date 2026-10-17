@@ -10,16 +10,33 @@
 
 static const void *HSHomeKey = &HSHomeKey;     // feed -> @YES/@NO: Home's feed (decided once)
 static const void *HSSpacersKey = &HSSpacersKey; // layout -> HSSpacers
+static const void *HSScanKey = &HSScanKey;       // layout -> HSScan
 
 static BOOL HSIsHomeFeed(UIView *list) {
+    static __weak UIView *firstFeed; // the first feed laid out: Home's, the tab the app opens on
     NSNumber *decided = list ? objc_getAssociatedObject(list, HSHomeKey) : nil;
     if (decided) return decided.boolValue;
     NSString *tab = TBHSelectedTabIdentifier();
-    // Home is the first tab, so its feed can be laid out before the tab bar can be read.
-    BOOL home = tab == nil || [tab isEqualToString:@"FEwhat_to_watch"];
-    if (list.window && tab) objc_setAssociatedObject(list, HSHomeKey, @(home), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    // Home's feed can be laid out before the tab bar can be read: then only the first feed counts as Home.
+    if (tab == nil) {
+        if (firstFeed == nil) firstFeed = list;
+        return list == firstFeed;
+    }
+    BOOL home = [tab isEqualToString:@"FEwhat_to_watch"];
+    if (list.window) objc_setAssociatedObject(list, HSHomeKey, @(home), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return home;
 }
+
+// Which rows have been looked at: spacer rows found so far, and per section how many rows were checked, with the
+// first and last checked row's node (if either changed, the feed was replaced, e.g. refreshed: checked again).
+@interface HSScan : NSObject
+@property (nonatomic, strong) NSMutableArray<NSIndexPath *> *spacers;
+@property (nonatomic, strong) NSMutableArray<NSNumber *> *counts;
+@property (nonatomic, strong) NSPointerArray *firstNodes, *lastNodes; // weak
+@end
+
+@implementation HSScan
+@end
 
 // The spacer rows of one layout pass: their index paths, and for each (top to bottom) its bottom edge and the
 // height removed up to and including it, so any row's shift is a binary search.
@@ -66,16 +83,49 @@ static void HSPrepare(UICollectionViewLayout *self, SEL _cmd) {
     if (spacerClass == Nil) spacerClass = NSClassFromString(@"ELMCellNode");
     SEL nodeSel = NSSelectorFromString(@"nodeForItemAtIndexPath:");
     if (spacerClass == Nil || ![list respondsToSelector:nodeSel]) return;
-    CGSize content = ((CGSize (*)(id, SEL))OriginalContentSize)(self, @selector(collectionViewContentSize));
-    NSArray<UICollectionViewLayoutAttributes *> *all = ((NSArray * (*)(id, SEL, CGRect))OriginalElementsInRect)(
-        self, @selector(layoutAttributesForElementsInRect:), CGRectMake(0.0, 0.0, MAX(content.width, 1.0), content.height));
+    // Only rows not looked at before are checked (a row's kind doesn't change); the spacers' frames are read again.
+    NSInteger sections = list.numberOfSections;
+    HSScan *scan = objc_getAssociatedObject(self, HSScanKey);
+    BOOL valid = scan && (NSInteger)scan.counts.count == sections;
+    for (NSInteger section = 0; valid && section < sections; section++) {
+        NSInteger checked = scan.counts[section].integerValue;
+        if (checked == 0) continue;
+        if ([list numberOfItemsInSection:section] < checked) { valid = NO; break; }
+        id first = ((id (*)(id, SEL, id))objc_msgSend)(list, nodeSel, [NSIndexPath indexPathForItem:0 inSection:section]);
+        id last = ((id (*)(id, SEL, id))objc_msgSend)(list, nodeSel, [NSIndexPath indexPathForItem:checked - 1 inSection:section]);
+        valid = first == [scan.firstNodes pointerAtIndex:section] && last == [scan.lastNodes pointerAtIndex:section];
+    }
+    if (!valid) {
+        scan = [HSScan new];
+        scan.spacers = [NSMutableArray array];
+        scan.counts = [NSMutableArray array];
+        scan.firstNodes = [NSPointerArray weakObjectsPointerArray];
+        scan.lastNodes = [NSPointerArray weakObjectsPointerArray];
+        for (NSInteger section = 0; section < sections; section++) {
+            [scan.counts addObject:@0];
+            [scan.firstNodes addPointer:NULL];
+            [scan.lastNodes addPointer:NULL];
+        }
+        objc_setAssociatedObject(self, HSScanKey, scan, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    for (NSInteger section = 0; section < sections; section++) {
+        NSInteger count = [list numberOfItemsInSection:section];
+        for (NSInteger item = scan.counts[section].integerValue; item < count; item++) {
+            NSIndexPath *path = [NSIndexPath indexPathForItem:item inSection:section];
+            id node = ((id (*)(id, SEL, id))objc_msgSend)(list, nodeSel, path);
+            if (item == 0) [scan.firstNodes replacePointerAtIndex:section withPointer:(__bridge void *)node];
+            if (item == count - 1) [scan.lastNodes replacePointerAtIndex:section withPointer:(__bridge void *)node];
+            if (![node isKindOfClass:spacerClass]) continue;
+            UICollectionViewLayoutAttributes *attributes = ((id (*)(id, SEL, id))OriginalItemAttributes)(self, @selector(layoutAttributesForItemAtIndexPath:), path);
+            CGFloat height = CGRectGetHeight(attributes.frame);
+            if (height > 0.0 && height <= 8.5) [scan.spacers addObject:path];
+        }
+        scan.counts[section] = @(count);
+    }
     NSMutableArray<UICollectionViewLayoutAttributes *> *found = [NSMutableArray array];
-    for (UICollectionViewLayoutAttributes *attributes in all) {
-        if (attributes.representedElementCategory != UICollectionElementCategoryCell) continue;
-        CGFloat height = CGRectGetHeight(attributes.frame);
-        if (height <= 0.0 || height > 8.5) continue;
-        id node = ((id (*)(id, SEL, id))objc_msgSend)(list, nodeSel, attributes.indexPath);
-        if ([node isKindOfClass:spacerClass]) [found addObject:attributes];
+    for (NSIndexPath *path in scan.spacers) {
+        UICollectionViewLayoutAttributes *attributes = ((id (*)(id, SEL, id))OriginalItemAttributes)(self, @selector(layoutAttributesForItemAtIndexPath:), path);
+        if (attributes) [found addObject:attributes];
     }
     if (found.count == 0) return;
     [found sortUsingComparator:^NSComparisonResult(UICollectionViewLayoutAttributes *a, UICollectionViewLayoutAttributes *b) {
