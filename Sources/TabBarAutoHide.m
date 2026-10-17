@@ -213,7 +213,7 @@ static void TBHShowPivotBar(UIView *self, SEL _cmd) {
 // has settled (one check, pushed back while it keeps moving, so not while it's being dragged).
 static IMP OriginalMiniSetCenter, OriginalMiniDidMoveToWindow;
 static CFTimeInterval TBHMiniMovedAt;
-static BOOL TBHMiniCheckPending;
+static BOOL TBHMiniCheckPending, TBHMiniFramed; // YouTube placed it by frame (that frame included our shift)
 
 static void TBHMiniCheck(void) {
     CFTimeInterval wait = TBHMiniMovedAt + 0.12 - CACurrentMediaTime();
@@ -223,36 +223,40 @@ static void TBHMiniCheck(void) {
     }
     TBHMiniCheckPending = NO;
     UIView *mini = TBHMini, *bar = TBHBar;
-    if (mini && bar) TBHMoveMini(mini, TBHBarHidden(bar), NO);
+    if (mini == nil || bar == nil) return;
+    // Placed by frame while shifted (YouTube drags it that way): where it is on screen is where YouTube wants it, so
+    // the shift is folded into its position first (nothing moves), then it's lined up with the bar as usual.
+    if (TBHMiniFramed && fabs(mini.transform.ty) > 0.5 && [mini.layer animationForKey:@"ytglass.follow"] == nil) {
+        CGPoint center = mini.center;
+        center.y += mini.transform.ty;
+        [UIView performWithoutAnimation:^{
+            mini.transform = CGAffineTransformIdentity;
+            mini.center = center;
+        }];
+    }
+    TBHMiniFramed = NO;
+    TBHMoveMini(mini, TBHBarHidden(bar), NO);
 }
 
 static void TBHMiniSetCenter(UIView *self, SEL _cmd, CGPoint center) {
     ((void (*)(id, SEL, CGPoint))OriginalMiniSetCenter)(self, _cmd, center);
     TBHMini = self;
-    // Moved away from the bottom (dragged up): our shift goes at once, so it stays where YouTube puts it.
-    UIView *bar = TBHBar;
-    if (bar && fabs(self.transform.ty) > 0.5 && fabs(TBHMiniShift(self, bar, YES)) < 0.5) {
-        [self.layer removeAnimationForKey:@"ytglass.follow"];
-        self.transform = CGAffineTransformIdentity;
-    }
     TBHMiniMovedAt = CACurrentMediaTime();
     if (TBHMiniCheckPending) return;
     TBHMiniCheckPending = YES;
     TBHMiniCheck();
 }
 
-// YouTube moves it by frame while it's dragged; with our shift on, that frame would include it. YouTube's frame is
-// taken as where it wants the mini player (its centre), and our shift goes on top as usual.
 static IMP OriginalMiniSetFrame;
 
 static void TBHMiniSetFrame(UIView *self, SEL _cmd, CGRect frame) {
-    if (CGAffineTransformIsIdentity(self.transform)) {
-        ((void (*)(id, SEL, CGRect))OriginalMiniSetFrame)(self, _cmd, frame);
-        TBHMiniSetCenter(self, @selector(setCenter:), self.center); // noted like any other move
-        return;
-    }
-    self.bounds = CGRectMake(0.0, 0.0, CGRectGetWidth(frame), CGRectGetHeight(frame));
-    self.center = CGPointMake(CGRectGetMidX(frame), CGRectGetMidY(frame));
+    ((void (*)(id, SEL, CGRect))OriginalMiniSetFrame)(self, _cmd, frame);
+    TBHMini = self;
+    TBHMiniFramed = YES;
+    TBHMiniMovedAt = CACurrentMediaTime();
+    if (TBHMiniCheckPending) return;
+    TBHMiniCheckPending = YES;
+    TBHMiniCheck();
 }
 
 static void TBHMiniDidMoveToWindow(UIView *self, SEL _cmd) {
