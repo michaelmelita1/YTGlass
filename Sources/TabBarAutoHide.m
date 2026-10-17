@@ -139,7 +139,8 @@ static void TBHSetBarHidden(UIView *bar, BOOL hidden) {
 
 // YouTube doesn't always move its floating mini player when the bar hides (it stayed put with YTPlus's tab bar
 // set to three tabs), leaving a gap below it. Whoever hides or shows the bar, the mini player is moved down by the
-// bar's height above the home indicator, or back, while it's docked just above the bar (not dragged to the top).
+// bar's height above the home indicator, or back, with the bar's own animation, while it's docked just above the bar
+// (not dragged to the top).
 static __weak UIView *TBHMini;
 
 static UIView *TBHFindMini(UIView *root) {
@@ -152,6 +153,19 @@ static UIView *TBHFindMini(UIView *root) {
     for (NSUInteger i = 0; i < queue.count && i < 3000; i++) {
         if ([queue[i] isKindOfClass:miniClass]) return (TBHMini = queue[i]);
         [queue addObjectsFromArray:queue[i].subviews];
+    }
+    return nil;
+}
+
+// The animation YouTube just added to the bar's position (on the bar or the view it moves), if any.
+static CAAnimation *TBHBarAnimation(UIView *bar) {
+    for (UIView *view = bar; view != nil && ![NSStringFromClass(view.class) isEqualToString:@"YTAppView"]; view = view.superview) {
+        for (NSString *key in view.layer.animationKeys) {
+            if ([key rangeOfString:@"position"].location == NSNotFound && [key rangeOfString:@"bounds"].location == NSNotFound &&
+                [key rangeOfString:@"transform"].location == NSNotFound) continue;
+            CAAnimation *animation = [view.layer animationForKey:key];
+            if (animation) return animation;
+        }
     }
     return nil;
 }
@@ -169,10 +183,27 @@ static void TBHMoveMini(UIView *appView, BOOL barHidden) {
         // Only while it's still docked right above the bar: if YouTube moved it itself, it's already lower.
         if (bottom > barTop - 40.0 && bottom <= barTop + 4.0) shift = CGRectGetHeight(bar.bounds) - appView.window.safeAreaInsets.bottom;
     }
-    CGAffineTransform move = CGAffineTransformMakeTranslation(0.0, MAX(0.0, shift));
-    if (CGAffineTransformEqualToTransform(mini.transform, move)) return;
-    [UIView animateWithDuration:0.25 delay:0.0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
-                     animations:^{ mini.transform = move; } completion:nil];
+    CGFloat target = MAX(0.0, shift);
+    CALayer *shown = mini.layer.presentationLayer ?: mini.layer;
+    CGFloat from = [[shown valueForKeyPath:@"transform.translation.y"] doubleValue];
+    if (fabs(from - target) < 0.5 && fabs(mini.transform.ty - target) < 0.5) return;
+    mini.transform = CGAffineTransformMakeTranslation(0.0, target);
+    // The same animation YouTube gives the bar (its duration and curve, or spring), so they move as one.
+    CAAnimation *barAnimation = TBHBarAnimation(bar);
+    CABasicAnimation *animation = [barAnimation isKindOfClass:CABasicAnimation.class] ? [barAnimation copy] : nil; // and springs
+    if (animation == nil) {
+        CABasicAnimation *basic = [CABasicAnimation animation];
+        basic.duration = 0.25;
+        basic.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+        animation = basic;
+    }
+    animation.keyPath = @"transform.translation.y";
+    animation.additive = NO;
+    animation.removedOnCompletion = YES;
+    animation.fromValue = @(from);
+    animation.toValue = @(target);
+    animation.byValue = nil;
+    [mini.layer addAnimation:animation forKey:@"ytglass.follow"];
 }
 
 static IMP OriginalHidePivotBar, OriginalShowPivotBar;
