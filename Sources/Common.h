@@ -27,6 +27,7 @@ extern NSString *const YTGDeArrowTitlesKey;     // DeArrow community titles (DeA
 extern NSString *const YTGDeArrowThumbnailsKey; // DeArrow thumbnails (DeArrow.m)
 extern NSString *const YTGHideAIKey;            // AiSList blocklist (AiSList.m)
 extern NSString *const YTGHideSuspectedAIKey;   // AiSList warnlist (AiSList.m)
+extern NSString *const YTGGlassTabBarKey;       // our Liquid Glass tab bar (GlassTabBar.m)
 extern NSString *const YTGYTPlusFixesKey; // workarounds for YTPlus bugs (YTPlusFixes.m)
 BOOL YTGFeatureEnabled(NSString *key);
 BOOL YTGOptInEnabled(NSString *key); // off unless switched on
@@ -36,6 +37,8 @@ YTGSearchStyle YTGSearchMode(void);
 
 // TabBarAutoHide.m: YouTube's tab bar (YTPivotBarView) on screen, or nil.
 UIView *TBHFindBar(void);
+// TabBarAutoHide.m: whether a YTPivotBarItemView is the selected tab.
+BOOL TBHPivotItemSelected(UIView *item);
 // TabBarAutoHide.m: the selected tab's identifier (e.g. FEwhat_to_watch, FElibrary), or nil.
 NSString *TBHSelectedTabIdentifier(void);
 // TabBarAutoHide.m: the selected tab's label as YouTube shows it (in the app's language), or nil.
@@ -43,3 +46,6 @@ NSString *TBHSelectedTabTitle(void);
 
 // HideTopBar.m: YES for a top bar (or wrapper) we made invisible. It still holds the page's search button.
 BOOL TBHTopBarHiddenByUs(UIView *view);
+
+// SearchButton.m: opens YouTube's search (taps the top bar's search button).
+void YTGOpenSearch(UIView *from);
