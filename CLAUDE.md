@@ -82,8 +82,11 @@ switch at launch, so changes apply after a restart (the page's bottom row says s
 
 ## Planned
 
-- Replacement Liquid Glass tab bar (WIP, branch `wip/glass-tab-bar`): our own glass capsule on YouTube's `YTPivotBarView`
+- Replacement Liquid Glass tab bar (`Sources/GlassTabBar.m`, back in main for 0.1.1 on the 0.0.6 code; the first
+  attempt is kept on branch `wip/glass-tab-bar`): our own glass capsule on YouTube's `YTPivotBarView`
   (independent of YTPlus, never touching it; YTPlus's Liquid Glass tab bar is switched off by hand), ported from
   YTKACE's TabBarHooks.mm with iOS's `_UILiquidLensView`, and the search button in the same `UIGlassContainerEffect`
   so it merges when the capsule is stretched into it (like the iOS 26 Phone app); Integrated mode as a Search slot.
-  Shelved at 0.1.1~debug16: not working well yet (touch response, mini player, a band across the bottom).
+  Open issues from the first attempt: the whole bar's touch response, the mini player, a band across the bottom.
+- 0.1.1 is rebuilt from 0.0.6 because 0.1.0 made Home's scrolling slower; 0.1.0's DeArrow, AiSList, Off/Integrated
+  tab bar unclipping and the Slide Up animation rename are not in it.
