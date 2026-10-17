@@ -4,8 +4,9 @@ Liquid Glass tweaks for YouTube builds with **YTPlus 6.0** and its Liquid Glass 
 
 ## What it does
 
-- **Tab bar hides on scroll**, on every page, with YouTube's own Home behaviour (the mini player follows it).
-  Switching tabs brings it back. Never on Shorts. Works on nested-scroll pages like History.
+- **Tab bar hides on scroll**, on every page (YouTube itself only does this on Home). Scrolling down about 64pt
+  hides it; scrolling up about 25pt, reaching the top or switching tabs brings it back. A fling is projected
+  forward. Never on Shorts. Works on nested-scroll pages like History.
 - **Round glass search button** to the right of the tab bar, like Apple Music and the App Store on iOS 26.
   It matches the capsule's height, hides and shows with the bar, and opens YouTube's normal search.
 - **No top bar**: YouTube's top navigation bar is removed on every page except search and the You tab.
@@ -44,9 +45,9 @@ Hiding the tab bar on scroll, Home's spacing and the Settings menu item are alwa
 
 ## How
 
-- `Sources/TabBarAutoHide.m`: turns on YouTube's own hide-on-scroll (`-[YTScrollableNavigationController
-  hidePivotBarOnScroll]`, Home only by default) for every tab but Shorts, and has every page's feed report its
-  scrolling through `updatePivotBarVisibilityForScrollView:contentOffsetY:isAtBottom:`, as Home's does.
+- `Sources/TabBarAutoHide.m`: hides the bar with YouTube's own `-[YTAppView hidePivotBar]` / `-showPivotBar`
+  (what Home uses), so the feed's bottom inset and the mini-player follow. Scroll tracking ported from
+  [YTKACE](https://github.com/itzzace/ytkace) v1.1.1 (MIT).
 - `Sources/SearchButton.m`: narrows YTPlus's `UITabBar` and adds the button inside `YTPivotBarView`. Tapping it
   taps the hidden top bar's `id.ui.navigation.search.button`.
 - `Sources/HideTopBar.m`: keeps `YTHeaderView` collapsed with YouTube's own `scrollHeaderViewWithOffset:` and

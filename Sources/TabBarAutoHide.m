@@ -1,13 +1,19 @@
 // TabBarAutoHide
-// Hides YouTube's tab bar when you scroll down, on every page, the way YouTube does on Home. Meant as an add-on for
-// builds that already restyle the tab bar, such as YTPlus with its Liquid Glass tab bar.
+// Hides YouTube's tab bar when you scroll down, on every page (YouTube itself only
+// does this on Home). Meant as an add-on for builds that already restyle the tab bar,
+// such as YTPlus with its Liquid Glass tab bar.
 //
-// How: YouTube's own hide-on-scroll lives in YTScrollableNavigationController: hidePivotBarOnScroll (on for Home only)
-// and updatePivotBarVisibilityForScrollView:contentOffsetY:isAtBottom:, which Home's feed calls as it scrolls and
-// which hides and shows the bar through YTAppView, keeping the feed's inset and the mini player in step. Here
-// hidePivotBarOnScroll is on for every tab but Shorts, and every page's main feed reports its scrolling to its
-// navigation controller the same way. Switching tabs brings the bar back; on Shorts it's never hidden.
-// It adds no views and changes nothing about how the bar looks.
+// The scroll tracking is ported from YTKACE (https://github.com/itzzace/ytkace) v1.1.1,
+// TabBarHooks.mm. MIT License, Copyright (c) 2026 YTKACE contributors. See LICENSE.
+//
+// How it hides the bar:
+// - It calls YouTube's own -[YTAppView hidePivotBar] / -showPivotBar, the same calls YouTube
+//   makes on Home. YTAppView lays the bar out by frame on every layout pass, so moving the bar
+//   any other way (e.g. with a transform) gets undone straight away; going through YouTube
+//   keeps the layout, the feed's bottom inset and the mini-player in step.
+// - With YTPlus, the visible glass bar is a system UITabBar laid out inside YouTube's
+//   YTPivotBarView, so it moves with it.
+// - Never on Shorts. It adds no views and changes nothing about how the bar looks.
 //
 // Pure Objective-C runtime swizzling: no CydiaSubstrate / ElleKit dependency.
 
@@ -120,74 +126,190 @@ static BOOL TBHBarHidden(UIView *bar) {
 
 #pragma mark - Hide / show
 
+static CGFloat TBHProgress; // 0 = fully shown, 1 = scrolled far enough to hide
+
 static void TBHSetBarHidden(UIView *bar, BOOL hidden) {
     if (bar == nil || TBHBarHidden(bar) == hidden) return;
     if (hidden && (TBHOnShorts(bar) || bar.hidden || bar.alpha < 0.01 || bar.window == nil)) return;
+    TBHProgress = hidden ? 1.0 : 0.0;
     TBHAppViewCall(TBHAppView(bar), hidden ? @"hidePivotBar" : @"showPivotBar");
 }
 
-#pragma mark - YouTube's hide-on-scroll on every page
+#pragma mark - The mini player follows the bar
 
-// YouTube's own setting (on for Home only): on for every tab but Shorts.
-static BOOL TBHHideOnScroll(__unused id self, __unused SEL _cmd) {
-    return ![TBHSelectedTabIdentifier() isEqualToString:@"FEshorts"];
+// YouTube doesn't always move its floating mini player when the bar hides (it stayed put with YTPlus's tab bar
+// set to three tabs), leaving a gap below it. Whoever hides or shows the bar, the mini player is moved down by the
+// bar's height above the home indicator, or back, while it's docked just above the bar (not dragged to the top).
+static __weak UIView *TBHMini;
+
+static UIView *TBHFindMini(UIView *root) {
+    UIView *mini = TBHMini;
+    if (mini.window == root.window && mini.window != nil) return mini;
+    static Class miniClass;
+    if (miniClass == Nil) miniClass = NSClassFromString(@"YTWatchFloatingMiniplayerWithPersistentControlsView");
+    if (miniClass == Nil) return nil;
+    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:root];
+    for (NSUInteger i = 0; i < queue.count && i < 3000; i++) {
+        if ([queue[i] isKindOfClass:miniClass]) return (TBHMini = queue[i]);
+        [queue addObjectsFromArray:queue[i].subviews];
+    }
+    return nil;
 }
 
-// The YTScrollableNavigationController a feed belongs to (kept per feed).
-static UIViewController *TBHNavigation(UIScrollView *scrollView) {
-    static NSMapTable<UIScrollView *, UIViewController *> *known;
-    if (known == nil) known = [NSMapTable weakToWeakObjectsMapTable];
-    UIViewController *nav = [known objectForKey:scrollView];
-    if (nav) return nav;
-    static Class navClass;
-    if (navClass == Nil) navClass = NSClassFromString(@"YTScrollableNavigationController");
-    if (navClass == Nil) return nil;
-    UIViewController *page = nil;
-    for (UIResponder *r = scrollView.nextResponder; r != nil && page == nil; r = r.nextResponder) {
-        if ([r isKindOfClass:UIViewController.class]) page = (UIViewController *)r;
+static void TBHMoveMini(UIView *appView, BOOL barHidden) {
+    UIView *bar = TBHBar;
+    UIView *mini = appView.window ? TBHFindMini(appView.window) : nil;
+    if (mini == nil || bar == nil) return;
+    CGFloat shift = 0.0;
+    if (barHidden) {
+        // Where YouTube put it (center ignores the transform) against where the bar sits when shown.
+        CGPoint center = [mini.superview convertPoint:mini.center toView:nil];
+        CGFloat bottom = center.y + CGRectGetHeight(mini.bounds) / 2.0;
+        CGFloat barTop = CGRectGetHeight(appView.window.bounds) - CGRectGetHeight(bar.bounds);
+        // Only while it's still docked right above the bar: if YouTube moved it itself, it's already lower.
+        if (bottom > barTop - 40.0 && bottom <= barTop + 4.0) shift = CGRectGetHeight(bar.bounds) - appView.window.safeAreaInsets.bottom;
     }
-    for (UIViewController *v = page; v != nil; v = v.parentViewController) {
-        if ([v isKindOfClass:navClass]) nav = v;
-    }
-    if (nav) [known setObject:nav forKey:scrollView];
-    return nav;
+    CGAffineTransform move = CGAffineTransformMakeTranslation(0.0, MAX(0.0, shift));
+    if (CGAffineTransformEqualToTransform(mini.transform, move)) return;
+    [UIView animateWithDuration:0.25 delay:0.0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
+                     animations:^{ mini.transform = move; } completion:nil];
 }
 
-static IMP OriginalScrollSetContentOffset, OriginalUpdateVisibility;
-static CFTimeInterval TBHLastTouchTime; // last time any scroll view was dragged or flinging
-static NSHashTable<UIScrollView *> *TBHNativeFeeds; // feeds YouTube reports itself (Home's): not reported twice
-static BOOL TBHForwarding;
+static IMP OriginalHidePivotBar, OriginalShowPivotBar;
 
-static void TBHUpdateVisibility(id self, SEL _cmd, UIScrollView *scrollView, CGFloat offsetY, BOOL atBottom) {
-    if (!TBHForwarding && scrollView) {
-        if (TBHNativeFeeds == nil) TBHNativeFeeds = [NSHashTable weakObjectsHashTable];
-        [TBHNativeFeeds addObject:scrollView];
-    }
-    ((void (*)(id, SEL, UIScrollView *, CGFloat, BOOL))OriginalUpdateVisibility)(self, _cmd, scrollView, offsetY, atBottom);
+static void TBHHidePivotBar(UIView *self, SEL _cmd) {
+    ((void (*)(id, SEL))OriginalHidePivotBar)(self, _cmd);
+    TBHMoveMini(self, YES);
 }
+
+static void TBHShowPivotBar(UIView *self, SEL _cmd) {
+    ((void (*)(id, SEL))OriginalShowPivotBar)(self, _cmd);
+    TBHMoveMini(self, NO);
+}
+
+#pragma mark - Scroll tracking (from YTKACE)
+
+static CGFloat const TBHDistance = 64.0; // points of scrolling down before the bar hides
+static __weak UIScrollView *TBHScroll;      // the feed currently being followed
+static CFTimeInterval TBHLastTouchTime;     // last time any scroll view was dragged or flinging
+static CGFloat TBHLastOffset;
+static const void *TBHPanKey = &TBHPanKey;
+
+static BOOL TBHEligible(UIScrollView *scrollView, UIView *bar) {
+    UIWindow *window = bar.window;
+    if (window == nil || scrollView.window != window) return NO;
+    // Only the page's main feed, not small horizontal shelves or sheets.
+    if (CGRectGetHeight(scrollView.bounds) < CGRectGetHeight(window.bounds) * 0.4) return NO;
+    // Shorts (and other one-item-per-page pagers) never hide the bar, even if the tab can't be read.
+    if (scrollView.pagingEnabled) return NO;
+    CGFloat range = scrollView.contentSize.height + scrollView.adjustedContentInset.top +
+        scrollView.adjustedContentInset.bottom - CGRectGetHeight(scrollView.bounds);
+    if (range < TBHDistance * 1.5) return NO;
+    return !TBHOnShorts(bar);
+}
+
+@interface TBHPanTracker : NSObject
+@end
+
+@implementation TBHPanTracker
+
+// Decides at finger-lift, projecting a fling forward the way UIScrollView will.
+- (void)pan:(UIPanGestureRecognizer *)pan {
+    UIScrollView *scrollView = (UIScrollView *)pan.view;
+    UIView *bar = TBHBar;
+    if (bar == nil || ![scrollView isKindOfClass:UIScrollView.class]) return;
+    if (pan.state == UIGestureRecognizerStateBegan) {
+        if (!TBHEligible(scrollView, bar)) return;
+        TBHScroll = scrollView;
+        TBHLastOffset = scrollView.contentOffset.y;
+        return;
+    }
+    if (pan.state != UIGestureRecognizerStateEnded && pan.state != UIGestureRecognizerStateCancelled &&
+        pan.state != UIGestureRecognizerStateFailed) return;
+    if (TBHScroll != scrollView) return;
+    BOOL hidden = TBHBarHidden(bar);
+    CGFloat progress = TBHProgress;
+    CGFloat velocity = -[pan velocityInView:scrollView].y;
+    if (pan.state == UIGestureRecognizerStateEnded && fabs(velocity) > 50.0) {
+        CGFloat rate = scrollView.decelerationRate;
+        CGFloat travel = velocity / 1000.0 * rate / MAX(0.0001, 1.0 - rate);
+        CGFloat minY = -scrollView.adjustedContentInset.top;
+        CGFloat maxY = MAX(minY, scrollView.contentSize.height + scrollView.adjustedContentInset.bottom -
+                                 CGRectGetHeight(scrollView.bounds));
+        CGFloat target = MAX(minY, MIN(maxY, scrollView.contentOffset.y + travel));
+        progress += (target - scrollView.contentOffset.y) / TBHDistance;
+        if (target <= minY + 0.5) progress = 0.0;
+    }
+    if (progress >= 1.0) {
+        if (hidden) TBHProgress = 1.0;
+        else TBHSetBarHidden(bar, YES);
+    } else if (hidden) {
+        TBHSetBarHidden(bar, NO);
+    } else {
+        TBHProgress = 0.0;
+    }
+}
+
+@end
+
+static IMP OriginalScrollSetContentOffset;
 
 static void TBHScrollSetContentOffset(UIScrollView *receiver, SEL selector, CGPoint offset) {
     ((void (*)(id, SEL, CGPoint))OriginalScrollSetContentOffset)(receiver, selector, offset);
     UIView *bar = TBHBar;
-    UIWindow *window = bar.window;
-    // Only the page's main feed, not shelves, sheets or Shorts-style pagers.
-    if (window == nil || receiver.window != window || receiver.pagingEnabled ||
-        CGRectGetHeight(receiver.bounds) < CGRectGetHeight(window.bounds) * 0.4) return;
-    // Moved by the user: directly, or (History's collapsing header nests two scroll views, the finger driving the
-    // outer one and code moving the list) within a moment of a touch.
+    if (bar == nil) return;
+    // Is this movement caused by the user? Directly (being dragged or flinging), or indirectly:
+    // some pages (e.g. History, with its collapsing header) nest two scroll views, where the
+    // finger drives an outer one that only moves the header and code moves the inner list.
     CFTimeInterval now = CACurrentMediaTime();
-    if (receiver.isTracking || receiver.isDecelerating) TBHLastTouchTime = now;
-    else if (now - TBHLastTouchTime > 0.25) return;
-    static SEL update;
-    if (update == NULL) update = NSSelectorFromString(@"updatePivotBarVisibilityForScrollView:contentOffsetY:isAtBottom:");
-    if ([TBHNativeFeeds containsObject:receiver]) return; // YouTube reports this one itself
-    UIViewController *nav = TBHNavigation(receiver);
-    if (![nav respondsToSelector:update]) return;
+    BOOL touching = receiver.isTracking || receiver.isDecelerating;
+    if (touching) TBHLastTouchTime = now;
+    BOOL userDriven = touching || now - TBHLastTouchTime < 0.25;
+    // First time the user drags this scroll view: also follow its pan gesture (fling projection).
+    if (receiver.isTracking && objc_getAssociatedObject(receiver, TBHPanKey) == nil) {
+        static TBHPanTracker *tracker;
+        if (tracker == nil) tracker = [TBHPanTracker new];
+        objc_setAssociatedObject(receiver, TBHPanKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [receiver.panGestureRecognizer addTarget:tracker action:@selector(pan:)];
+    }
     CGFloat y = receiver.contentOffset.y;
-    BOOL atBottom = y + CGRectGetHeight(receiver.bounds) >= receiver.contentSize.height + receiver.adjustedContentInset.bottom - 1.0;
-    TBHForwarding = YES; // the offset from the top of the content, as Home's feed reports it
-    ((void (*)(id, SEL, UIScrollView *, CGFloat, BOOL))objc_msgSend)(nav, update, receiver, y + receiver.adjustedContentInset.top, atBottom);
-    TBHForwarding = NO;
+    if (receiver != TBHScroll) {
+        // Follow the page's main feed: the first tall, long scroll view the user moves.
+        if (!userDriven || !TBHEligible(receiver, bar)) return;
+        TBHScroll = receiver;
+        TBHLastOffset = y;
+        return;
+    }
+    BOOL hidden = TBHBarHidden(bar);
+    static BOOL lastHidden;
+    if (hidden != lastHidden) { // changed by YouTube itself (Home, tab switch, navigation)
+        lastHidden = hidden;
+        TBHProgress = hidden ? 1.0 : 0.0;
+    }
+    if (y <= -receiver.adjustedContentInset.top + 0.5) { // back at the top
+        TBHLastOffset = y;
+        if (hidden) TBHSetBarHidden(bar, NO);
+        else TBHProgress = 0.0;
+        return;
+    }
+    if (!userDriven) { // YouTube moving the feed by itself (restoring a position etc.)
+        TBHLastOffset = y;
+        return;
+    }
+    CGFloat delta = y - TBHLastOffset;
+    TBHLastOffset = y;
+    if (fabs(delta) < 0.01) return;
+    CGFloat progress = MAX(hidden ? 0.01 : 0.0, MIN(1.0, TBHProgress + delta / TBHDistance));
+    if (!hidden && progress >= 1.0) {
+        TBHSetBarHidden(bar, YES);
+        return;
+    }
+    // Bring the bar back as soon as the user scrolls up a little (about 25pt).
+    if (hidden && progress <= 0.6) {
+        TBHSetBarHidden(bar, NO);
+        return;
+    }
+    TBHProgress = progress;
 }
 
 #pragma mark - Tab bar hooks
@@ -218,10 +340,10 @@ __attribute__((constructor)) static void TBHInit(void) {
     @autoreleasepool {
         TBHHookMethod(NSClassFromString(@"YTPivotBarView"), @"layoutSubviews", (IMP)TBHBarLayout, &OriginalBarLayout);
         TBHHookMethod(NSClassFromString(@"YTPivotBarItemView"), @"setSelected:", (IMP)TBHItemSetSelected, &OriginalItemSetSelected);
-        TBHHookMethod(NSClassFromString(@"YTScrollableNavigationController"), @"hidePivotBarOnScroll", (IMP)TBHHideOnScroll, NULL);
         TBHHookMethod(UIScrollView.class, @"setContentOffset:", (IMP)TBHScrollSetContentOffset, &OriginalScrollSetContentOffset);
-        TBHHookMethod(NSClassFromString(@"YTScrollableNavigationController"), @"updatePivotBarVisibilityForScrollView:contentOffsetY:isAtBottom:",
-                      (IMP)TBHUpdateVisibility, &OriginalUpdateVisibility);
+        Class appView = NSClassFromString(@"YTAppView");
+        TBHHookMethod(appView, @"hidePivotBar", (IMP)TBHHidePivotBar, &OriginalHidePivotBar);
+        TBHHookMethod(appView, @"showPivotBar", (IMP)TBHShowPivotBar, &OriginalShowPivotBar);
     }
 }
 
