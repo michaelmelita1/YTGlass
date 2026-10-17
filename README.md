@@ -24,21 +24,11 @@ Liquid Glass tweaks for YouTube builds with **YTPlus 6.0** and its Liquid Glass 
   community ones.
 - **Hide AI channels** (off by default): removes channels on the [AiSList](https://aisloplist.com) blocklist and/or
   warnlist from feeds and search.
-- **YTPlus fixes**: workarounds for YTPlus bugs, kept separate so they can go once YTPlus fixes them. Currently:
-  the settings close button, which YTPlus's Liquid Glass leaves with no width (drawn over the title, untappable).
-
-## Settings
-
-YouTube Settings → YTGlass (in the Tweaks group when YouGroupSettings is installed, as in YTPlus builds;
-otherwise right after General). One setting per feature, all on by default; changes apply after restarting
-YouTube:
-
 - **Search**: Off, Separate (a round glass button next to the tab bar, the default) or Integrated (a Search
   item at the end of YTPlus's tab bar)
 - **Hide Navigation bar** (the top bar, with the status bar blur and large titles)
 - **Liquid Glass player**
 - **Slide Up animation** (on: the animation is disabled)
-- **YTPlus Fixes**
 - **DeArrow titles**, **DeArrow thumbnails**, **Hide AI channels**, **Hide suspected AI channels** (off by default; they go online)
 
 Hiding the tab bar on scroll, Home's spacing and the Settings menu item are always on.
@@ -60,8 +50,6 @@ Hiding the tab bar on scroll, Home's spacing and the Settings menu item are alwa
   rows get no height and the rows below move up (the rows' own sizes are left alone).
 - `Sources/MenuSettings.m`: adds the Settings item to YTPlus's menu (recognised by its translated Tab bar item) and
   sends YouTube's `+[YTICommand applicationSettingsNavigationEndpoint]` command.
-- `Sources/YTPlusFixes.m`: workarounds for YTPlus bugs; the settings close button (`id.ui.browse.close.button`)
-  gets a square size when it has none.
 - `Sources/DeArrow.m`: ported from YTKACE v1.1.3; reads the video ID from each feed thumbnail's URL
   (`ELMImageNode`), asks DeArrow's branding API, sets the DeArrow thumbnail on the node and the title on the card's
   title `ELMTextNode`. Results are cached; requests are limited to 4 at once and 90 a minute.

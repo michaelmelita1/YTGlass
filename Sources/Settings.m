@@ -10,7 +10,6 @@ static NSString *const YTGSearchModeKey = @"YTGlass_SearchMode";
 NSString *const YTGTopBarKey = @"YTGlass_HideTopBar";
 NSString *const YTGPlayerKey = @"YTGlass_PlayerGlass";
 NSString *const YTGSlideUpKey = @"YTGlass_NoSlideUpAnimation";
-NSString *const YTGYTPlusFixesKey = @"YTGlass_YTPlusSettingsFix"; // key kept from 0.0.4
 NSString *const YTGDeArrowTitlesKey = @"YTGlass_DeArrowTitles";
 NSString *const YTGDeArrowThumbnailsKey = @"YTGlass_DeArrowThumbnails";
 NSString *const YTGHideAIKey = @"YTGlass_HideAIChannels";
@@ -156,8 +155,6 @@ static void YTGUpdateSection(id self, SEL _cmd, NSUInteger category, id entry) {
                   @"Liquid Glass video player controls.", YTGPlayerKey, NO) ?: NSNull.null,
         YTGSwitch(@"Slide Up animation",
                   @"Disable the default animation when loading a new tab.", YTGSlideUpKey, NO) ?: NSNull.null,
-        YTGSwitch(@"YTPlus Fixes",
-                  @"Fix the YT settings close button when Liquid Glass is enabled.", YTGYTPlusFixesKey, NO) ?: NSNull.null,
         YTGSwitch(@"DeArrow titles",
                   @"Replace video titles with DeArrow's community titles.", YTGDeArrowTitlesKey, YES) ?: NSNull.null,
         YTGSwitch(@"DeArrow thumbnails",

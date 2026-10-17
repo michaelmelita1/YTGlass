@@ -27,7 +27,6 @@ extern NSString *const YTGDeArrowTitlesKey;     // DeArrow community titles (DeA
 extern NSString *const YTGDeArrowThumbnailsKey; // DeArrow thumbnails (DeArrow.m)
 extern NSString *const YTGHideAIKey;            // AiSList blocklist (AiSList.m)
 extern NSString *const YTGHideSuspectedAIKey;   // AiSList warnlist (AiSList.m)
-extern NSString *const YTGYTPlusFixesKey; // workarounds for YTPlus bugs (YTPlusFixes.m)
 BOOL YTGFeatureEnabled(NSString *key);
 BOOL YTGOptInEnabled(NSString *key); // off unless switched on
 // Settings.m: how search is shown (SearchButton.m).
