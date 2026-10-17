@@ -153,8 +153,18 @@ static UIViewController *TBHNavigation(UIScrollView *scrollView) {
     return nav;
 }
 
-static IMP OriginalScrollSetContentOffset;
+static IMP OriginalScrollSetContentOffset, OriginalUpdateVisibility;
 static CFTimeInterval TBHLastTouchTime; // last time any scroll view was dragged or flinging
+static NSHashTable<UIScrollView *> *TBHNativeFeeds; // feeds YouTube reports itself (Home's): not reported twice
+static BOOL TBHForwarding;
+
+static void TBHUpdateVisibility(id self, SEL _cmd, UIScrollView *scrollView, CGFloat offsetY, BOOL atBottom) {
+    if (!TBHForwarding && scrollView) {
+        if (TBHNativeFeeds == nil) TBHNativeFeeds = [NSHashTable weakObjectsHashTable];
+        [TBHNativeFeeds addObject:scrollView];
+    }
+    ((void (*)(id, SEL, UIScrollView *, CGFloat, BOOL))OriginalUpdateVisibility)(self, _cmd, scrollView, offsetY, atBottom);
+}
 
 static void TBHScrollSetContentOffset(UIScrollView *receiver, SEL selector, CGPoint offset) {
     ((void (*)(id, SEL, CGPoint))OriginalScrollSetContentOffset)(receiver, selector, offset);
@@ -170,11 +180,14 @@ static void TBHScrollSetContentOffset(UIScrollView *receiver, SEL selector, CGPo
     else if (now - TBHLastTouchTime > 0.25) return;
     static SEL update;
     if (update == NULL) update = NSSelectorFromString(@"updatePivotBarVisibilityForScrollView:contentOffsetY:isAtBottom:");
+    if ([TBHNativeFeeds containsObject:receiver]) return; // YouTube reports this one itself
     UIViewController *nav = TBHNavigation(receiver);
     if (![nav respondsToSelector:update]) return;
     CGFloat y = receiver.contentOffset.y;
     BOOL atBottom = y + CGRectGetHeight(receiver.bounds) >= receiver.contentSize.height + receiver.adjustedContentInset.bottom - 1.0;
-    ((void (*)(id, SEL, UIScrollView *, CGFloat, BOOL))objc_msgSend)(nav, update, receiver, y, atBottom);
+    TBHForwarding = YES; // the offset from the top of the content, as Home's feed reports it
+    ((void (*)(id, SEL, UIScrollView *, CGFloat, BOOL))objc_msgSend)(nav, update, receiver, y + receiver.adjustedContentInset.top, atBottom);
+    TBHForwarding = NO;
 }
 
 #pragma mark - Tab bar hooks
@@ -207,6 +220,8 @@ __attribute__((constructor)) static void TBHInit(void) {
         TBHHookMethod(NSClassFromString(@"YTPivotBarItemView"), @"setSelected:", (IMP)TBHItemSetSelected, &OriginalItemSetSelected);
         TBHHookMethod(NSClassFromString(@"YTScrollableNavigationController"), @"hidePivotBarOnScroll", (IMP)TBHHideOnScroll, NULL);
         TBHHookMethod(UIScrollView.class, @"setContentOffset:", (IMP)TBHScrollSetContentOffset, &OriginalScrollSetContentOffset);
+        TBHHookMethod(NSClassFromString(@"YTScrollableNavigationController"), @"updatePivotBarVisibilityForScrollView:contentOffsetY:isAtBottom:",
+                      (IMP)TBHUpdateVisibility, &OriginalUpdateVisibility);
     }
 }
 
