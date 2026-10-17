@@ -1,8 +1,8 @@
 MIT License
 
 Copyright (c) 2026 Michael Melita
-Copyright (c) 2026 YTKACE contributors (scroll tracking in Sources/TabBarAutoHide.m; Sources/DeArrow.m and
-Sources/AiSList.m)
+Copyright (c) 2026 YTKACE contributors (scroll tracking in Sources/TabBarAutoHide.m; Sources/DeArrow.m,
+Sources/AiSList.m and the glass tab bar and lens in Sources/GlassTabBar.m)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

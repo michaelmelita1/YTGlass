@@ -10,6 +10,7 @@ static NSString *const YTGSearchModeKey = @"YTGlass_SearchMode";
 NSString *const YTGTopBarKey = @"YTGlass_HideTopBar";
 NSString *const YTGPlayerKey = @"YTGlass_PlayerGlass";
 NSString *const YTGSlideUpKey = @"YTGlass_NoSlideUpAnimation";
+NSString *const YTGGlassTabBarKey = @"YTGlass_GlassTabBar";
 NSString *const YTGDeArrowTitlesKey = @"YTGlass_DeArrowTitles";
 NSString *const YTGDeArrowThumbnailsKey = @"YTGlass_DeArrowThumbnails";
 NSString *const YTGHideAIKey = @"YTGlass_HideAIChannels";
@@ -149,6 +150,8 @@ static void YTGUpdateSection(id self, SEL _cmd, NSUInteger category, id entry) {
     @try { delegate = [self valueForKey:@"_settingsViewControllerDelegate"]; } @catch (__unused NSException *e) {}
     NSArray *items = [@[
         YTGSearchPicker(self, delegate) ?: NSNull.null,
+        YTGSwitch(@"Liquid Glass tab bar",
+                  @"YTGlass's own glass tab bar (turn off YTPlus's Liquid Glass tab bar).", YTGGlassTabBarKey, YES) ?: NSNull.null,
         YTGSwitch(@"Hide Navigation bar",
                   @"Removes the navigation bar and styles it like a native app.", YTGTopBarKey, NO) ?: NSNull.null,
         YTGSwitch(@"Liquid Glass player",

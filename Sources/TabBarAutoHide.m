@@ -440,6 +440,10 @@ __attribute__((constructor)) static void TBHInit(void) {
     }
 }
 
+BOOL TBHPivotItemSelected(UIView *item) {
+    return TBHItemSelected(item);
+}
+
 UIView *TBHFindBar(void) {
     UIView *bar = TBHBar;
     if (bar) return bar;

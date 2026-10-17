@@ -7,7 +7,7 @@ include $(THEOS)/makefiles/common.mk
 # Plain library (no CydiaSubstrate/ElleKit dependency) so it can be injected into an IPA.
 LIBRARY_NAME = YTGlass
 
-YTGlass_FILES = Sources/TabBarAutoHide.m Sources/SearchButton.m Sources/HideTopBar.m Sources/PlayerGlass.m Sources/HomeSpacing.m Sources/TabAnimation.m Sources/MenuSettings.m Sources/DeArrow.m Sources/AiSList.m Sources/Settings.m
+YTGlass_FILES = Sources/TabBarAutoHide.m Sources/SearchButton.m Sources/GlassTabBar.m Sources/HideTopBar.m Sources/PlayerGlass.m Sources/HomeSpacing.m Sources/TabAnimation.m Sources/MenuSettings.m Sources/DeArrow.m Sources/AiSList.m Sources/Settings.m
 YTGlass_CFLAGS = -fobjc-arc -Wall -Wextra -Werror=return-type -DYTG_VERSION=\"$(shell grep '^Version:' control | cut -d' ' -f2)\"
 YTGlass_FRAMEWORKS = Foundation UIKit QuartzCore
 YTGlass_LDFLAGS = -Wl,-install_name,@rpath/YTGlass.dylib
