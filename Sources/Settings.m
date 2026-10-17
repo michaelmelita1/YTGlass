@@ -142,7 +142,7 @@ static void YTGUpdateSection(id self, SEL _cmd, NSUInteger category, id entry) {
                   @"Removes the navigation bar and styles it like a native app.", YTGTopBarKey) ?: NSNull.null,
         YTGSwitch(@"Liquid Glass player",
                   @"Liquid Glass video player controls.", YTGPlayerKey) ?: NSNull.null,
-        YTGSwitch(@"YT Slide Up Animation",
+        YTGSwitch(@"Slide Up animation",
                   @"Disable the default animation when loading a new tab.", YTGSlideUpKey) ?: NSNull.null,
         YTGSwitch(@"YTPlus Fixes",
                   @"Fix the YT settings close button when Liquid Glass is enabled.", YTGYTPlusFixesKey) ?: NSNull.null,

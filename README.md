@@ -33,7 +33,7 @@ YouTube:
   item at the end of YTPlus's tab bar)
 - **Hide Navigation bar** (the top bar, with the status bar blur and large titles)
 - **Liquid Glass player**
-- **YT Slide Up Animation** (on: the animation is disabled)
+- **Slide Up animation** (on: the animation is disabled)
 - **YTPlus Fixes**
 
 Hiding the tab bar on scroll, Home's spacing and the Settings menu item are always on.
