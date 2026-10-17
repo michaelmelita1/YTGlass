@@ -62,6 +62,7 @@ Pure Objective-C runtime swizzling, no CydiaSubstrate/ElleKit dependency. See `L
 
 ## Changelog
 
+- **0.1.1**: built on 0.0.6 for Home's smooth scrolling; the mini player moves with the tab bar on every page, with the bar's own animation; the tab bar stays hidden when a list bounces at its end; DeArrow and AiSList back, lighter while scrolling; Slide Up animation renamed; YTPlus Fixes removed (YTPlus fixed the bug); smaller optimisations.
 - **0.0.6**: YTPlus's player buttons (mute, sleep timer, menu) move into the top row and share one glass capsule with settings; the quality label and full screen button share one pill at the bottom; faster tab bar handling (Shorts checks skipped when there's no Shorts tab).
 - **0.0.5**: no slide-up animation when switching tabs (YT Slide Up Animation switch); Home's videos spaced like Subscriptions'; YTPlus Settings Fix renamed YTPlus Fixes; smoother scrolling.
 - **0.0.4**: a Settings item in YTPlus's tab bar menu opens YouTube's settings from any tab; new YTPlus Settings Fix switch makes the settings close button tappable again with YTPlus's Liquid Glass.
