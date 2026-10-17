@@ -1,8 +1,8 @@
 MIT License
 
 Copyright (c) 2026 Michael Melita
-Copyright (c) 2026 YTKACE contributors (scroll tracking in Sources/TabBarAutoHide.m; Sources/DeArrow.m and
-Sources/AiSList.m)
+Copyright (c) 2026 YTKACE contributors (scroll tracking in Sources/TabBarAutoHide.m; the glass tab bar and lens in
+Sources/GlassTabBar.m)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -47,13 +47,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Data used by these features (not part of this software's license):
-
-- DeArrow (Sources/DeArrow.m): titles and thumbnails come from the SponsorBlock service (https://sponsor.ajay.app,
-  https://dearrow.ajay.app), whose data is licensed under CC BY-NC-SA 4.0.
-- AiSList (Sources/AiSList.m): the blocklist and warnlist from https://aisloplist.com, maintained by the AiSList
-  community at https://github.com/Override92/AiSList and licensed under CC BY-NC 4.0. They are downloaded unmodified
-  and only read to match channels in the feed and search.

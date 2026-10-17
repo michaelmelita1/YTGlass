@@ -11,10 +11,7 @@ NSString *const YTGTopBarKey = @"YTGlass_HideTopBar";
 NSString *const YTGPlayerKey = @"YTGlass_PlayerGlass";
 NSString *const YTGSlideUpKey = @"YTGlass_NoSlideUpAnimation";
 NSString *const YTGYTPlusFixesKey = @"YTGlass_YTPlusSettingsFix"; // key kept from 0.0.4
-NSString *const YTGDeArrowTitlesKey = @"YTGlass_DeArrowTitles";
-NSString *const YTGDeArrowThumbnailsKey = @"YTGlass_DeArrowThumbnails";
-NSString *const YTGHideAIKey = @"YTGlass_HideAIChannels";
-NSString *const YTGHideSuspectedAIKey = @"YTGlass_HideSuspectedAIChannels";
+NSString *const YTGGlassTabBarKey = @"YTGlass_GlassTabBar";
 
 static BOOL YTGSwitchValue(NSString *key, BOOL fallback) {
     id value = [NSUserDefaults.standardUserDefaults objectForKey:key];
@@ -26,7 +23,7 @@ BOOL YTGFeatureEnabled(NSString *key) {
 }
 
 BOOL YTGOptInEnabled(NSString *key) {
-    return YTGSwitchValue(key, NO); // off unless switched on (features that go online)
+    return YTGSwitchValue(key, NO); // off unless switched on
 }
 
 YTGSearchStyle YTGSearchMode(void) {
@@ -150,22 +147,16 @@ static void YTGUpdateSection(id self, SEL _cmd, NSUInteger category, id entry) {
     @try { delegate = [self valueForKey:@"_settingsViewControllerDelegate"]; } @catch (__unused NSException *e) {}
     NSArray *items = [@[
         YTGSearchPicker(self, delegate) ?: NSNull.null,
+        YTGSwitch(@"Liquid Glass tab bar",
+                  @"YTGlass's own glass tab bar (turn off YTPlus's Liquid Glass tab bar).", YTGGlassTabBarKey, YES) ?: NSNull.null,
         YTGSwitch(@"Hide Navigation bar",
                   @"Removes the navigation bar and styles it like a native app.", YTGTopBarKey, NO) ?: NSNull.null,
         YTGSwitch(@"Liquid Glass player",
                   @"Liquid Glass video player controls.", YTGPlayerKey, NO) ?: NSNull.null,
-        YTGSwitch(@"Slide Up animation",
+        YTGSwitch(@"YT Slide Up Animation",
                   @"Disable the default animation when loading a new tab.", YTGSlideUpKey, NO) ?: NSNull.null,
         YTGSwitch(@"YTPlus Fixes",
                   @"Fix the YT settings close button when Liquid Glass is enabled.", YTGYTPlusFixesKey, NO) ?: NSNull.null,
-        YTGSwitch(@"DeArrow titles",
-                  @"Replace video titles with DeArrow's community titles.", YTGDeArrowTitlesKey, YES) ?: NSNull.null,
-        YTGSwitch(@"DeArrow thumbnails",
-                  @"Replace thumbnails with DeArrow's chosen frames.", YTGDeArrowThumbnailsKey, YES) ?: NSNull.null,
-        YTGSwitch(@"Hide AI channels",
-                  @"Remove channels on the AiSList blocklist.", YTGHideAIKey, YES) ?: NSNull.null,
-        YTGSwitch(@"Hide suspected AI channels",
-                  @"Remove channels on the AiSList warnlist.", YTGHideSuspectedAIKey, YES) ?: NSNull.null,
         YTGNote(@"Restart YouTube to apply changes.") ?: NSNull.null,
         YTGNote(@"YTGlass " YTG_VERSION) ?: NSNull.null,
     ] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"self != %@", NSNull.null]];

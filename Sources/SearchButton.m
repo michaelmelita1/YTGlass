@@ -40,7 +40,7 @@ static void TBSFindSearchButtons(UIView *view, NSMutableArray<UIView *> *found) 
     for (UIView *subview in view.subviews) TBSFindSearchButtons(subview, found);
 }
 
-static void TBSOpenSearch(UIView *from) {
+void YTGOpenSearch(UIView *from) {
     UIWindow *window = from.window;
     if (window == nil) return;
     NSMutableArray<UIView *> *found = [NSMutableArray array];
@@ -64,7 +64,7 @@ static void TBSOpenSearch(UIView *from) {
 
 @implementation TBSSearchTarget
 - (void)tapped:(UIButton *)button {
-    TBSOpenSearch(button);
+    YTGOpenSearch(button);
 }
 @end
 
@@ -189,13 +189,6 @@ static void TBSReapply(UITabBar *tabBar) {
     tabBar.frame = full ? full.CGRectValue : tabBar.frame;
 }
 
-// The glass grows a little while pressed; YouTube's bar clips to its bounds, which would cut the top off.
-// (YTKACE's glass tab bar turns this off for the same reason.) Done in every search mode.
-static void TBSUnclip(UIView *bar) {
-    if (bar.clipsToBounds) bar.clipsToBounds = NO;
-    if (bar.layer.masksToBounds) bar.layer.masksToBounds = NO;
-}
-
 static IMP OriginalBarLayout;
 
 static void TBSBarLayout(UIView *self, SEL _cmd) {
@@ -245,7 +238,10 @@ static void TBSBarLayout(UIView *self, SEL _cmd) {
     if (button.superview != self) [self addSubview:button];
     [self bringSubviewToFront:button];
     button.hidden = NO;
-    TBSUnclip(self);
+    // The glass grows a little while pressed; YouTube's bar clips to its bounds, which would cut
+    // the top off. (YTKACE's glass tab bar turns this off for the same reason.)
+    if (self.clipsToBounds) self.clipsToBounds = NO;
+    if (self.layer.masksToBounds) self.layer.masksToBounds = NO;
     button.overrideUserInterfaceStyle = tabBar.traitCollection.userInterfaceStyle; // dark on Shorts, like the bar
     CGRect frame = CGRectMake(x, midY - size / 2.0, size, size);
     if (!CGRectEqualToRect(button.frame, frame)) button.frame = frame;
@@ -345,7 +341,7 @@ static void TBSDidSelect(id self, SEL _cmd, UITabBar *tabBar, UITabBarItem *item
     if (TBSIsSearchItem(item)) {
         UITabBarItem *last = objc_getAssociatedObject(tabBar, TBSLastKey);
         if (last && [tabBar.items containsObject:last]) ((void (*)(id, SEL, id))OriginalSetSelectedItem)(tabBar, @selector(setSelectedItem:), last);
-        TBSOpenSearch(tabBar);
+        YTGOpenSearch(tabBar);
         return;
     }
     IMP original = NULL;
@@ -391,22 +387,12 @@ static void TBSInlineBarLayout(UIView *self, SEL _cmd) {
     if (OriginalInlineBarLayout) ((void (*)(id, SEL))OriginalInlineBarLayout)(self, _cmd);
     UITabBar *tabBar = TBSTabBar(self, 2);
     if (tabBar == nil || tabBar.hidden || tabBar.items.count == 0) return;
-    TBSUnclip(self);
     TBSWrapDelegate(tabBar.delegate);
     if (![tabBar.items containsObject:TBSSearchItem(tabBar)]) {
         UITabBarItem *selected = tabBar.selectedItem;
         tabBar.items = tabBar.items; // goes through TBSSetItems
         if (selected && [tabBar.items containsObject:selected]) tabBar.selectedItem = selected;
     }
-}
-
-static IMP OriginalPlainBarLayout;
-
-// Search off: only the clipping.
-static void TBSPlainBarLayout(UIView *self, SEL _cmd) {
-    if (OriginalPlainBarLayout) ((void (*)(id, SEL))OriginalPlainBarLayout)(self, _cmd);
-    UITabBar *tabBar = TBSTabBar(self, 2);
-    if (tabBar != nil && !tabBar.hidden) TBSUnclip(self);
 }
 
 #pragma mark - Search results behind the floating bar
@@ -427,11 +413,7 @@ __attribute__((constructor)) static void TBSInit(void) {
         if (type[0] == 'B' || type[0] == 'c') TBHHookMethod(results, @"optOutOfFrostedPivotBar", (IMP)TBSSearchOptOut, NULL);
         NSInteger mode = YTGSearchMode();
         Class bar = NSClassFromString(@"YTPivotBarView");
-        if (bar == Nil) return;
-        if (mode == YTGSearchOff) {
-            TBHHookMethod(bar, @"layoutSubviews", (IMP)TBSPlainBarLayout, &OriginalPlainBarLayout);
-            return;
-        }
+        if (bar == Nil || mode == YTGSearchOff) return;
         if (mode == YTGSearchInTabBar) {
             TBHHookMethod(UITabBar.class, @"setItems:animated:", (IMP)TBSSetItems, &OriginalSetItems);
             TBHHookMethod(UITabBar.class, @"setSelectedItem:", (IMP)TBSSetSelectedItem, &OriginalSetSelectedItem);
