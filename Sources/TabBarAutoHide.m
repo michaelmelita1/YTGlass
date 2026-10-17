@@ -156,8 +156,8 @@ static UIView *TBHFindMini(UIView *root) {
     return nil;
 }
 
-// Follows the bar frame by frame while it animates (its on-screen layer, not its final frame), so the mini player
-// moves with it rather than on a timing of its own.
+// Follows the bar frame by frame while it animates (its on-screen layer, not its final frame), eased, so the mini
+// player moves with it rather than on a timing of its own.
 @interface TBHMiniFollower : NSObject
 @property (nonatomic, weak) UIView *mini, *bar;
 @property (nonatomic, assign) CGFloat shift; // the mini player's move with the bar fully hidden (0: stays put)
@@ -176,8 +176,11 @@ static UIView *TBHFindMini(UIView *root) {
     CGFloat top = [shown convertPoint:CGPointZero toLayer:windowLayer].y;
     CGFloat height = CGRectGetHeight(bar.bounds), shownTop = CGRectGetHeight(window.bounds) - height;
     CGFloat progress = height > 0.0 ? MAX(0.0, MIN(1.0, (top - shownTop) / height)) : 0.0; // 0 shown, 1 hidden
-    mini.transform = CGAffineTransformMakeTranslation(0.0, round(progress * self.shift * 2.0) / 2.0);
-    if (link.timestamp > self.until) [self stop];
+    // Eased after the bar rather than locked to it (YouTube's own mini player moves softly).
+    CGFloat target = progress * self.shift, current = mini.transform.ty;
+    CGFloat next = fabs(target - current) < 0.5 ? target : current + (target - current) * 0.22;
+    mini.transform = CGAffineTransformMakeTranslation(0.0, next);
+    if (link.timestamp > self.until && next == target) [self stop];
 }
 
 - (void)stop {

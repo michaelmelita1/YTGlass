@@ -17,6 +17,7 @@
 #import "Common.h"
 
 static CGFloat const GTMargin = 21.0;        // capsule to the screen edges
+static CGFloat const GTPressedMargin = 14.0; // while pressed, the capsule widens (as iOS 26's tab bar does)
 static CGFloat const GTSearchGap = 12.0;     // capsule to the search button
 static CGFloat const GTMergeSpacing = 10.0;  // glass closer than this merges (just under the gap)
 static CGFloat const GTLensInset = 4.0;      // resting lens inside the capsule
@@ -28,6 +29,7 @@ static const void *GTStateKey = &GTStateKey; // YTPivotBarView -> GTState
 @interface GTState : NSObject <UIGestureRecognizerDelegate>
 @property (nonatomic, weak) UIView *bar;
 @property (nonatomic, strong) UIVisualEffectView *container, *capsule, *search;
+@property (nonatomic, strong) UIView *searchItem;     // Search: Integrated, the last slot in the capsule
 @property (nonatomic, strong) UIView *lens;           // _UILiquidLensView (a plain pill where that's missing)
 @property (nonatomic, strong) UIView *magnified;      // the tinted copy of the tabs the lifted lens shows
 @property (nonatomic, weak) UIView *holed;            // the tabs' container, masked under the lens while lifted
@@ -40,7 +42,7 @@ static const void *GTStateKey = &GTStateKey; // YTPivotBarView -> GTState
 @property (nonatomic, assign) CGRect capsuleFrame;          // at rest
 @property (nonatomic, assign) CGFloat stretch;              // capsule's extra width while dragged past its end
 // The current press.
-@property (nonatomic, assign) BOOL lifted, dragging;
+@property (nonatomic, assign) BOOL lifted, dragging, expanded;
 @property (nonatomic, assign) CGPoint startPoint;
 @property (nonatomic, assign) CGFloat restingWidth, anchorX;
 @property (nonatomic, weak) UIView *touchedItem;
@@ -121,6 +123,12 @@ static BOOL GTHoldsItems(UIView *view) {
 static UIView *GTItemsContainer(UIView *bar) {
     for (UIView *subview in bar.subviews) if (GTHoldsItems(subview)) return subview;
     return nil;
+}
+
+// YouTube's tabs, then (Search: Integrated) our Search slot: the lens moves across all of them.
+static NSArray<UIView *> *GTSlots(GTState *state) {
+    NSArray<UIView *> *items = GTItems(state.bar);
+    return YTGSearchMode() == YTGSearchInTabBar && items.count ? [items arrayByAddingObject:state.searchItem] : items;
 }
 
 static UIView *GTSelectedItem(NSArray<UIView *> *items) {
@@ -369,9 +377,22 @@ static void GTAttachMagnifier(GTState *state, NSArray<UIView *> *tabs) {
     GTSyncMask(state);
 }
 
+// The capsule widens while pressed and settles back after.
+static void GTSetExpanded(GTState *state, BOOL expanded) {
+    if (state.expanded == expanded) return;
+    state.expanded = expanded;
+    GTTrack(state, 0.7);
+    UIView *bar = state.bar;
+    GTSpring(0.4, expanded ? 0.5 : 0.25, ^{
+        [bar setNeedsLayout];
+        [bar layoutIfNeeded];
+    });
+}
+
 static void GTLiftLens(GTState *state, NSArray<UIView *> *tabs, CGSize size, CGPoint center) {
     UIView *lens = state.lens;
     NSUInteger pressID = state.pressID;
+    GTSetExpanded(state, YES);
     GTAttachMagnifier(state, tabs);
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.45 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (state.lifted && state.pressID == pressID) GTAttachMagnifier(state, GTItems(state.bar)); // after the tabs settle
@@ -432,8 +453,9 @@ static void GTPlaceLens(GTState *state, NSArray<UIView *> *items) {
 
 #pragma mark - Layout
 
-static void GTLayout(UIView *bar, GTState *state) {
-    // YouTube's own background goes (its blur, and full-height or hairline views that hold no tab button).
+// YouTube's own background goes (its blur, and full-height or hairline views that hold no tab button). Also redone
+// when YouTube restyles the bar (it does when the mini player appears).
+static void GTClearBackground(UIView *bar, GTState *state) {
     SEL blurSel = NSSelectorFromString(@"blurView");
     UIView *blur = [bar respondsToSelector:blurSel] ? ((id (*)(id, SEL))objc_msgSend)(bar, blurSel) : nil;
     if ([blur isKindOfClass:UIView.class]) blur.hidden = YES;
@@ -451,14 +473,20 @@ static void GTLayout(UIView *bar, GTState *state) {
     bar.opaque = NO;
     bar.clipsToBounds = NO;
     bar.layer.masksToBounds = NO;
+}
 
-    // The capsule: tab height plus 7pt above and below, 21pt from the edges, narrower for few tabs (as YTKACE).
-    NSArray<UIView *> *items = GTItems(bar);
+static void GTLayout(UIView *bar, GTState *state) {
+    GTClearBackground(bar, state);
+
+    // The capsule: tab height plus 7pt above and below, 21pt from the edges (14pt while pressed), narrower for few tabs
+    // (as YTKACE).
+    NSArray<UIView *> *items = GTSlots(state);
     CGFloat itemHeight = CGRectGetHeight(bar.bounds) - bar.safeAreaInsets.bottom;
     CGFloat height = MAX(itemHeight, 44.0) + 14.0;
     CGFloat top = MIN(0.0, CGRectGetHeight(bar.bounds) - height - 4.0);
     BOOL withSearch = YTGSearchMode() == YTGSearchSeparate;
-    CGFloat width = CGRectGetWidth(bar.bounds) - GTMargin * 2.0 - (withSearch ? height + GTSearchGap : 0.0);
+    CGFloat margin = state.expanded ? GTPressedMargin : GTMargin;
+    CGFloat width = CGRectGetWidth(bar.bounds) - margin * 2.0 - (withSearch ? height + GTSearchGap : 0.0);
     if (items.count > 0 && items.count <= 4) width = MIN(width, 86.0 * (CGFloat)items.count + 16.0);
     CGFloat groupWidth = width + (withSearch ? GTSearchGap + height : 0.0);
     state.capsuleFrame = CGRectMake((CGRectGetWidth(bar.bounds) - groupWidth) / 2.0, top, width, height);
@@ -475,9 +503,17 @@ static void GTLayout(UIView *bar, GTState *state) {
         glyph.center = CGPointMake(height / 2.0, height / 2.0);
     }
 
-    // YouTube's tab buttons, one slot each across the capsule (they stay YouTube's: taps on them work as before).
+    // YouTube's tab buttons, one slot each across the capsule (they stay YouTube's: taps on them work as before), and
+    // our Search slot after them.
+    state.searchItem.hidden = ![items containsObject:state.searchItem];
+    if (!state.searchItem.hidden) {
+        CGRect slot = GTSlot(state.capsuleFrame, items.count, items.count - 1);
+        state.searchItem.frame = [bar convertRect:CGRectInset(slot, 0.0, GTLensInset) toView:state.container.contentView];
+        if (state.searchItem.superview != state.container.contentView) [state.container.contentView addSubview:state.searchItem];
+    }
     for (NSUInteger index = 0; index < items.count; index++) {
         UIView *item = items[index];
+        if (item == state.searchItem) continue;
         CGRect slot = GTSlot(state.capsuleFrame, items.count, index);
         CGRect current = [item convertRect:item.bounds toView:bar];
         CGRect target = CGRectMake(CGRectGetMinX(slot), CGRectGetMidY(slot) - CGRectGetHeight(current) / 2.0, CGRectGetWidth(slot), CGRectGetHeight(current));
@@ -516,9 +552,9 @@ static void GTLayout(UIView *bar, GTState *state) {
     if (gesture.view != self.bar) return YES;
     CGPoint point = [gesture locationInView:self.bar];
     if (!CGRectContainsPoint(self.capsuleFrame, point)) return NO;
-    NSArray<UIView *> *items = GTItems(self.bar);
+    NSArray<UIView *> *items = GTSlots(self);
     UIView *touched = GTItemNearX(self, items, point.x);
-    if (touched && GTItemIdentifier(touched) == nil) return NO;
+    if (touched && touched != self.searchItem && GTItemIdentifier(touched) == nil) return NO;
     // Another tab: we select it (YouTube's button doesn't also get the tap). The selected tab: YouTube's button keeps
     // its own tap (scrolling the page to the top).
     gesture.cancelsTouchesInView = touched == nil || touched != GTSelectedItem(items);
@@ -528,7 +564,7 @@ static void GTLayout(UIView *bar, GTState *state) {
 - (void)pressed:(UILongPressGestureRecognizer *)press {
     UIView *bar = self.bar, *lens = self.lens;
     if (bar == nil || lens.superview == nil) return;
-    NSArray<UIView *> *items = GTItems(bar);
+    NSArray<UIView *> *items = GTSlots(self);
     UIView *host = lens.superview;
     CGPoint point = [press locationInView:bar];
     UIView *selected = GTSelectedItem(items);
@@ -580,6 +616,7 @@ static void GTLayout(UIView *bar, GTState *state) {
     BOOL toSearch = ended && dragging && !self.search.hidden &&
                     CGRectContainsPoint(CGRectInset(self.search.frame, -6.0, -6.0), [bar convertPoint:point toView:self.container.contentView]);
     self.pressID += 1;
+    GTSetExpanded(self, NO);
     if (self.stretch != 0.0) {
         self.stretch = 0.0;
         GTSpring(0.45, 0.3, ^{ GTPlaceCapsule(self); });
@@ -587,7 +624,8 @@ static void GTLayout(UIView *bar, GTState *state) {
     if (!self.lifted) {
         self.moving = nil;
         UIView *tapped = self.touchedItem;
-        if (ended && tapped && GTItemIdentifier(tapped) && tapped != selected) GTSelectItem(tapped);
+        if (ended && tapped == self.searchItem) YTGOpenSearch(bar);
+        else if (ended && tapped && GTItemIdentifier(tapped) && tapped != selected) GTSelectItem(tapped);
         return;
     }
     self.lifted = NO;
@@ -595,6 +633,7 @@ static void GTLayout(UIView *bar, GTState *state) {
     self.moving = token;
     // A tap on the selected tab bumps the lens; otherwise it goes to the nearest tab (or back, for search).
     UIView *nearest = dragging ? GTItemNearX(self, items, point.x) : self.touchedItem;
+    if (ended && nearest == self.searchItem) toSearch = YES; // landed on the Search slot
     if (!ended || toSearch || (nearest && GTItemIdentifier(nearest) == nil)) nearest = selected;
     CGRect target = nearest ? [bar convertRect:GTLensFrame(self, items, nearest) toView:host] : lens.frame;
     CGPoint slide = CGPointMake(CGRectGetMidX(target), CGRectGetMidY(target));
@@ -636,6 +675,30 @@ static GTState *GTStateFor(UIView *bar) {
     [state.search addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:state action:@selector(searchTapped:)]];
     [state.container.contentView addSubview:state.capsule];
     [state.container.contentView addSubview:state.search];
+    // The Search slot: a glyph and a label, sized like YouTube's tab buttons.
+    UIView *searchItem = [UIView new];
+    searchItem.userInteractionEnabled = NO;
+    searchItem.isAccessibilityElement = YES;
+    searchItem.accessibilityLabel = @"Search";
+    searchItem.accessibilityTraits = UIAccessibilityTraitButton;
+    UIImageView *itemGlyph = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"magnifyingglass"
+        withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:20.0 weight:UIImageSymbolWeightMedium]]];
+    itemGlyph.tintColor = UIColor.labelColor;
+    itemGlyph.contentMode = UIViewContentModeCenter;
+    UILabel *itemLabel = [UILabel new];
+    itemLabel.text = @"Search";
+    itemLabel.font = [UIFont systemFontOfSize:10.0 weight:UIFontWeightMedium];
+    itemLabel.textColor = UIColor.labelColor;
+    itemLabel.textAlignment = NSTextAlignmentCenter;
+    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[itemGlyph, itemLabel]];
+    stack.axis = UILayoutConstraintAxisVertical;
+    stack.alignment = UIStackViewAlignmentCenter;
+    stack.spacing = 2.0;
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
+    [searchItem addSubview:stack];
+    [NSLayoutConstraint activateConstraints:@[[stack.centerXAnchor constraintEqualToAnchor:searchItem.centerXAnchor],
+                                              [stack.centerYAnchor constraintEqualToAnchor:searchItem.centerYAnchor]]];
+    state.searchItem = searchItem;
     state.lens = GTMakeLens(state.capsule.contentView);
     [state.capsule.contentView addSubview:state.lens];
     UILongPressGestureRecognizer *press = [[UILongPressGestureRecognizer alloc] initWithTarget:state action:@selector(pressed:)];
@@ -651,7 +714,17 @@ static GTState *GTStateFor(UIView *bar) {
 
 #pragma mark - Hooks
 
-static IMP OriginalBarLayout, OriginalBarHitTest, OriginalItemSetSelected;
+static IMP OriginalBarLayout, OriginalBarHitTest, OriginalItemSetSelected, OriginalStyleColors, OriginalSetBackgroundStyle;
+
+static void GTStyleColors(UIView *self, SEL _cmd) {
+    ((void (*)(id, SEL))OriginalStyleColors)(self, _cmd);
+    GTClearBackground(self, GTStateFor(self));
+}
+
+static void GTSetBackgroundStyle(UIView *self, SEL _cmd, int style) {
+    ((void (*)(id, SEL, int))OriginalSetBackgroundStyle)(self, _cmd, style);
+    GTClearBackground(self, GTStateFor(self));
+}
 
 static void GTBarLayout(UIView *self, SEL _cmd) {
     if (OriginalBarLayout) ((void (*)(id, SEL))OriginalBarLayout)(self, _cmd);
@@ -674,7 +747,7 @@ static void GTItemSetSelected(UIView *self, SEL _cmd, BOOL selected) {
     UIView *bar = self.superview;
     while (bar && ![NSStringFromClass(bar.class) isEqualToString:@"YTPivotBarView"]) bar = bar.superview;
     GTState *state = bar ? objc_getAssociatedObject(bar, GTStateKey) : nil;
-    if (state) GTPlaceLens(state, GTItems(bar));
+    if (state) GTPlaceLens(state, GTSlots(state));
 }
 
 __attribute__((constructor)) static void GTInit(void) {
@@ -683,6 +756,8 @@ __attribute__((constructor)) static void GTInit(void) {
         Class bar = NSClassFromString(@"YTPivotBarView");
         TBHHookMethod(bar, @"layoutSubviews", (IMP)GTBarLayout, &OriginalBarLayout);
         TBHHookMethod(bar, @"hitTest:withEvent:", (IMP)GTBarHitTest, &OriginalBarHitTest);
+        TBHHookMethod(bar, @"styleBackgroundColors", (IMP)GTStyleColors, &OriginalStyleColors);
+        TBHHookMethod(bar, @"setBackgroundStyle:", (IMP)GTSetBackgroundStyle, &OriginalSetBackgroundStyle);
         TBHHookMethod(NSClassFromString(@"YTPivotBarItemView"), @"setSelected:", (IMP)GTItemSetSelected, &OriginalItemSetSelected);
     }
 }
