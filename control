@@ -1,6 +1,6 @@
 Package: com.michaelmelita.ytglass
 Name: YTGlass
-Version: 0.1.1~debug26
+Version: 0.1.1~debug27
 Architecture: iphoneos-arm64
 Description: Liquid Glass tweaks for YouTube. Hides YouTube's tab bar when scrolling, adds a round glass search button next to it, and replaces the top navigation bar with an Apple Music-style status bar blur and large titles. Also gives the video player Liquid Glass controls. Add-on for YTPlus's Liquid Glass tab bar.
 Maintainer: Michael Melita

@@ -226,9 +226,27 @@ static void TBHMiniCheck(void) {
     if (mini && bar) TBHMoveMini(mini, TBHBarHidden(bar), NO);
 }
 
+// Being dragged by the user (a pan on it or on the view that moves it).
+static BOOL TBHMiniDragged(UIView *mini) {
+    for (UIView *view = mini; view != nil && view != mini.window; view = view.superview) {
+        for (UIGestureRecognizer *gesture in view.gestureRecognizers) {
+            if (![gesture isKindOfClass:UIPanGestureRecognizer.class]) continue;
+            if (gesture.state == UIGestureRecognizerStateBegan || gesture.state == UIGestureRecognizerStateChanged) return YES;
+        }
+        if (view != mini) break; // the mini player and its holder
+    }
+    return NO;
+}
+
 static void TBHMiniSetCenter(UIView *self, SEL _cmd, CGPoint center) {
     ((void (*)(id, SEL, CGPoint))OriginalMiniSetCenter)(self, _cmd, center);
     TBHMini = self;
+    // Picked up while moved down with the bar: it goes back under the finger (placed again once it's let go).
+    if (fabs(self.transform.ty) > 0.5 && TBHMiniDragged(self)) {
+        [self.layer removeAnimationForKey:@"ytglass.follow"];
+        [UIView animateWithDuration:0.15 delay:0.0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
+                         animations:^{ self.transform = CGAffineTransformIdentity; } completion:nil];
+    }
     TBHMiniMovedAt = CACurrentMediaTime();
     if (TBHMiniCheckPending) return;
     TBHMiniCheckPending = YES;
