@@ -79,3 +79,11 @@ switch at launch, so changes apply after a restart (the page's bottom row says s
   `YTEnterExitFullscreenButtonView` and (portrait) YouQuality's button directly, or (full screen) in a small wrapper
   elsewhere. YouTube/YouQuality keep re-setting those frames, so moving one with a transform flickers; `PlayerGlass.m`
   shifts it through a per-instance subclass of its frame/center accessors instead.
+
+## Planned
+
+- Replacement Liquid Glass tab bar (WIP, branch `wip/glass-tab-bar`): our own glass capsule on YouTube's `YTPivotBarView`
+  (independent of YTPlus, never touching it; YTPlus's Liquid Glass tab bar is switched off by hand), ported from
+  YTKACE's TabBarHooks.mm with iOS's `_UILiquidLensView`, and the search button in the same `UIGlassContainerEffect`
+  so it merges when the capsule is stretched into it (like the iOS 26 Phone app); Integrated mode as a Search slot.
+  Shelved at 0.1.1~debug16: not working well yet (touch response, mini player, a band across the bottom).
