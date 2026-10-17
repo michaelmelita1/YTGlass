@@ -1,7 +1,7 @@
 // GlassTabBar
 // iOS 26's own Liquid Glass tab bar in place of YouTube's, independent of other tweaks (use it with YTPlus's Liquid
 // Glass tab bar off). A real UITabBarController's tab bar sits inside YouTube's YTPivotBarView, with a UITab for each
-// of YouTube's tabs (YouTube's own icon and name), so everything about it is native: the glass, the touch response,
+// of YouTube's tabs (YouTube's name, an iOS symbol), so everything about it is native: the glass, the touch response,
 // the lens, and (Search: Separate) the system search tab beside the bar that merges into it when stretched, as in the
 // iOS 26 Phone app. Search: Integrated puts a plain Search tab in the bar instead.
 //
@@ -64,24 +64,11 @@ static NSString *GTItemTitle(UIView *item) {
     return item.accessibilityLabel ?: @"";
 }
 
-static UIImageView *GTFindImageView(UIView *view) {
-    if ([view isKindOfClass:UIImageView.class] && ((UIImageView *)view).image) return (UIImageView *)view;
-    for (UIView *subview in view.subviews) {
-        UIImageView *found = GTFindImageView(subview);
-        if (found) return found;
-    }
-    return nil;
-}
-
-// YouTube's own icon for the tab (photos, like the You tab's avatar, keep their colours); a symbol if there's none.
-static UIImage *GTItemImage(UIView *item, NSString *identifier) {
-    UIImage *image = GTFindImageView(item).image;
-    if (image) {
-        BOOL photo = image.renderingMode == UIImageRenderingModeAlwaysOriginal && !image.isSymbolImage;
-        return [image imageWithRenderingMode:photo ? UIImageRenderingModeAlwaysOriginal : UIImageRenderingModeAlwaysTemplate];
-    }
+// iOS symbols for YouTube's tabs (YouTube's own icon views don't carry a usable image); anything else gets a circle.
+static UIImage *GTItemImage(NSString *identifier) {
     NSDictionary *symbols = @{ @"FEwhat_to_watch": @"house", @"FEshorts": @"play.rectangle.on.rectangle", @"FEsubscriptions": @"play.square.stack",
-                               @"FEhistory": @"clock.arrow.circlepath", @"FElibrary": @"person.crop.circle", @"FEyou": @"person.crop.circle" };
+                               @"FEhistory": @"clock.arrow.circlepath", @"FElibrary": @"person.crop.circle", @"FEyou": @"person.crop.circle",
+                               @"FEdownloads": @"arrow.down.circle", @"FEexplore": @"safari" };
     return [UIImage systemImageNamed:symbols[identifier] ?: @"circle"];
 }
 
@@ -171,7 +158,7 @@ static void GTBuildTabs(GTState *state, NSArray<UIView *> *items) {
     [state.items removeAllObjects];
     for (UIView *item in items) {
         NSString *identifier = GTItemIdentifier(item);
-        id tab = identifier ? GTMakeTab(GTItemTitle(item), GTItemImage(item, identifier), identifier) : nil;
+        id tab = identifier ? GTMakeTab(GTItemTitle(item), GTItemImage(identifier), identifier) : nil;
         if (tab == nil) continue;
         [tabs addObject:tab];
         [state.items setObject:item forKey:identifier];
@@ -200,6 +187,7 @@ static GTState *GTStateFor(UIView *bar) {
     state.controller = [UITabBarController new];
     state.controller.delegate = state;
     state.controller.view.backgroundColor = UIColor.clearColor;
+    state.controller.tabBar.tintColor = UIColor.labelColor; // the selected tab: white in dark mode, black in light
     objc_setAssociatedObject(bar, GTStateKey, state, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return state;
 }
