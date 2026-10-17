@@ -152,7 +152,7 @@ static void YTGUpdateSection(id self, SEL _cmd, NSUInteger category, id entry) {
     NSArray *items = [@[
         YTGSearchPicker(self, delegate) ?: NSNull.null,
         YTGSwitch(@"Liquid Glass tab bar",
-                  @"YTGlass's own glass tab bar, used instead of YTPlus's.", YTGGlassTabBarKey, YES) ?: NSNull.null,
+                  @"YTGlass's own glass tab bar (turn off YTPlus's Liquid Glass tab bar).", YTGGlassTabBarKey, YES) ?: NSNull.null,
         YTGSwitch(@"Hide Navigation bar",
                   @"Removes the navigation bar and styles it like a native app.", YTGTopBarKey, NO) ?: NSNull.null,
         YTGSwitch(@"Liquid Glass player",

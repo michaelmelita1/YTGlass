@@ -1,6 +1,6 @@
 // GlassTabBar
-// Our own Liquid Glass tab bar, drawn on YouTube's YTPivotBarView, whatever YTPlus is set to (its system UITabBar, if
-// it adds one, is hidden and YouTube's own tab buttons shown again): a glass capsule holding YouTube's own tab buttons, a pill behind the selected tab, and (Search: Separate) a round
+// Our own Liquid Glass tab bar, drawn on YouTube's own YTPivotBarView and independent of other tweaks (use it with
+// YTPlus's Liquid Glass tab bar off): a glass capsule holding YouTube's own tab buttons, a pill behind the selected tab, and (Search: Separate) a round
 // glass search button. Capsule and button sit in one UIGlassContainerEffect, so iOS merges their glass when they come
 // close: dragging along the bar past the last tab stretches the capsule into the button, and letting go there opens
 // search, like the iOS 26 Phone app. The capsule's geometry and the way YouTube's bar is cleared follow YTKACE
@@ -252,31 +252,8 @@ static GTState *GTStateFor(UIView *bar) {
 
 static IMP OriginalBarLayout, OriginalBarHitTest, OriginalItemSetSelected;
 
-// YTPlus's Liquid Glass tab bar is a system UITabBar over YouTube's own buttons, which it hides: ours uses YouTube's.
-static void GTTakeOverFromYTPlus(UIView *bar) {
-    static Class itemClass;
-    if (itemClass == Nil) itemClass = NSClassFromString(@"YTPivotBarItemView");
-    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithArray:bar.subviews];
-    for (NSUInteger i = 0; i < queue.count && i < 400; i++) {
-        UIView *view = queue[i];
-        if ([view isKindOfClass:UITabBar.class]) {
-            if (!view.hidden) view.hidden = YES;
-            continue;
-        }
-        if ([view isKindOfClass:itemClass]) {
-            for (UIView *v = view; v != nil && v != bar; v = v.superview) {
-                if (v.hidden) v.hidden = NO;
-                if (v.alpha < 1.0) v.alpha = 1.0;
-            }
-            continue;
-        }
-        [queue addObjectsFromArray:view.subviews];
-    }
-}
-
 static void GTBarLayout(UIView *self, SEL _cmd) {
     if (OriginalBarLayout) ((void (*)(id, SEL))OriginalBarLayout)(self, _cmd);
-    GTTakeOverFromYTPlus(self);
     GTState *state = GTStateFor(self);
     GTLayout(self, state);
     UIImageView *glyph = state.search.contentView.subviews.firstObject;
