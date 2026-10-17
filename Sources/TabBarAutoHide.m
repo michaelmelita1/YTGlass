@@ -139,8 +139,8 @@ static void TBHSetBarHidden(UIView *bar, BOOL hidden) {
 
 // YouTube doesn't always move its floating mini player when the bar hides (it stayed put with YTPlus's tab bar
 // set to three tabs), leaving a gap below it. Whoever hides or shows the bar, the mini player is moved down by the
-// bar's height above the home indicator, or back, with the bar's own animation, while it's docked just above the bar
-// (not dragged to the top).
+// bar's height above the home indicator, or back, with the bar's own animation, while it's docked at the bottom (not
+// dragged to the top); when YouTube docks it itself (after a drag) it's placed again for where the bar is.
 static __weak UIView *TBHMini;
 
 static UIView *TBHFindMini(UIView *root) {
@@ -170,26 +170,31 @@ static CAAnimation *TBHBarAnimation(UIView *bar) {
     return nil;
 }
 
-static void TBHMoveMini(UIView *appView, BOOL barHidden) {
+// Where the docked mini player should sit: YouTube docks it a little above the bar's top, but measures that from the
+// shown bar or from the hidden one depending on when it docked; the shift puts it the same distance above wherever the
+// bar is now. Not docked (dragged up): no shift.
+static CGFloat TBHMiniShift(UIView *mini, UIView *bar, BOOL barHidden) {
+    UIWindow *window = mini.window;
+    if (window == nil) return 0.0;
+    CGPoint center = [mini.superview convertPoint:mini.center toView:nil]; // where YouTube put it (ignores the transform)
+    CGFloat bottom = center.y + CGRectGetHeight(mini.bounds) / 2.0;
+    CGFloat height = CGRectGetHeight(window.bounds);
+    CGFloat shownTop = height - CGRectGetHeight(bar.bounds), hiddenTop = height - window.safeAreaInsets.bottom;
+    if (bottom < shownTop - 40.0) return 0.0;
+    CGFloat gap = bottom <= shownTop + 4.0 ? shownTop - bottom : hiddenTop - bottom; // YouTube's distance to the bar
+    return (barHidden ? hiddenTop : shownTop) - gap - bottom;
+}
+
+static void TBHMoveMini(UIView *mini, BOOL barHidden, BOOL withBar) {
     UIView *bar = TBHBar;
-    UIView *mini = appView.window ? TBHFindMini(appView.window) : nil;
     if (mini == nil || bar == nil) return;
-    CGFloat shift = 0.0;
-    if (barHidden) {
-        // Where YouTube put it (center ignores the transform) against where the bar sits when shown.
-        CGPoint center = [mini.superview convertPoint:mini.center toView:nil];
-        CGFloat bottom = center.y + CGRectGetHeight(mini.bounds) / 2.0;
-        CGFloat barTop = CGRectGetHeight(appView.window.bounds) - CGRectGetHeight(bar.bounds);
-        // Only while it's still docked right above the bar: if YouTube moved it itself, it's already lower.
-        if (bottom > barTop - 40.0 && bottom <= barTop + 4.0) shift = CGRectGetHeight(bar.bounds) - appView.window.safeAreaInsets.bottom;
-    }
-    CGFloat target = MAX(0.0, shift);
+    CGFloat target = TBHMiniShift(mini, bar, barHidden);
     CALayer *shown = mini.layer.presentationLayer ?: mini.layer;
     CGFloat from = [[shown valueForKeyPath:@"transform.translation.y"] doubleValue];
     if (fabs(from - target) < 0.5 && fabs(mini.transform.ty - target) < 0.5) return;
     mini.transform = CGAffineTransformMakeTranslation(0.0, target);
     // The same animation YouTube gives the bar (its duration and curve, or spring), so they move as one.
-    CAAnimation *barAnimation = TBHBarAnimation(bar);
+    CAAnimation *barAnimation = withBar ? TBHBarAnimation(bar) : nil;
     CABasicAnimation *animation = [barAnimation isKindOfClass:CABasicAnimation.class] ? [barAnimation copy] : nil; // and springs
     if (animation == nil) {
         CABasicAnimation *basic = [CABasicAnimation animation];
@@ -210,12 +215,28 @@ static IMP OriginalHidePivotBar, OriginalShowPivotBar;
 
 static void TBHHidePivotBar(UIView *self, SEL _cmd) {
     ((void (*)(id, SEL))OriginalHidePivotBar)(self, _cmd);
-    TBHMoveMini(self, YES);
+    if (self.window) TBHMoveMini(TBHFindMini(self.window), YES, YES);
 }
 
 static void TBHShowPivotBar(UIView *self, SEL _cmd) {
     ((void (*)(id, SEL))OriginalShowPivotBar)(self, _cmd);
-    TBHMoveMini(self, NO);
+    if (self.window) TBHMoveMini(TBHFindMini(self.window), NO, YES);
+}
+
+// YouTube moved the mini player (it docked after a drag, or appeared): placed again for where the bar is, once it
+// has settled (not while it's being dragged).
+static IMP OriginalMiniSetCenter;
+static NSUInteger TBHMiniMoves;
+
+static void TBHMiniSetCenter(UIView *self, SEL _cmd, CGPoint center) {
+    ((void (*)(id, SEL, CGPoint))OriginalMiniSetCenter)(self, _cmd, center);
+    NSUInteger move = ++TBHMiniMoves;
+    __weak UIView *weakMini = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.12 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        UIView *mini = weakMini, *bar = TBHBar;
+        if (mini == nil || bar == nil || move != TBHMiniMoves) return;
+        TBHMoveMini(mini, TBHBarHidden(bar), NO);
+    });
 }
 
 #pragma mark - Scroll tracking (from YTKACE)
@@ -375,6 +396,7 @@ __attribute__((constructor)) static void TBHInit(void) {
         Class appView = NSClassFromString(@"YTAppView");
         TBHHookMethod(appView, @"hidePivotBar", (IMP)TBHHidePivotBar, &OriginalHidePivotBar);
         TBHHookMethod(appView, @"showPivotBar", (IMP)TBHShowPivotBar, &OriginalShowPivotBar);
+        TBHHookMethod(NSClassFromString(@"YTWatchFloatingMiniplayerWithPersistentControlsView"), @"setCenter:", (IMP)TBHMiniSetCenter, &OriginalMiniSetCenter);
     }
 }
 
