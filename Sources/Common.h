@@ -54,3 +54,5 @@ BOOL TBHTopBarHiddenByUs(UIView *view);
 
 // SearchButton.m: opens YouTube's search (taps the top bar's search button).
 void YTGOpenSearch(UIView *from);
+// HomeHold.m: opens YouTube's settings.
+void YTGOpenSettings(void);

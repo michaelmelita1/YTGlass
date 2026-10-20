@@ -9,7 +9,7 @@
 
 #import "Common.h"
 
-static void MSOpenSettings(void) {
+void YTGOpenSettings(void) {
     Class commandClass = NSClassFromString(@"YTICommand");
     Class eventClass = NSClassFromString(@"YTCommandResponderEvent");
     SEL commandSel = NSSelectorFromString(@"applicationSettingsNavigationEndpoint");
@@ -60,7 +60,7 @@ static BOOL MSOnHomeTab(UIContextMenuInteraction *interaction, CGPoint location)
 static UIContextMenuConfiguration *MSConfiguration(id self, SEL _cmd, UIContextMenuInteraction *interaction, CGPoint location) {
     if (MSOnHomeTab(interaction, location)) {
         [[UIImpactFeedbackGenerator.alloc initWithStyle:UIImpactFeedbackStyleMedium] impactOccurred];
-        dispatch_async(dispatch_get_main_queue(), ^{ MSOpenSettings(); });
+        dispatch_async(dispatch_get_main_queue(), ^{ YTGOpenSettings(); });
         return nil; // no menu
     }
     IMP original = NULL;

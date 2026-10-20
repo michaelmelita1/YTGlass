@@ -129,6 +129,20 @@ static void GTSelectTab(GTState *state, NSString *identifier) {
 
 @implementation GTState
 
+// Holding the Home tab opens YouTube's settings (Hold Home for settings), as on YTPlus's bar.
+- (void)held:(UILongPressGestureRecognizer *)hold {
+    if (hold.state != UIGestureRecognizerStateBegan) return;
+    UITabBar *tabBar = self.controller.tabBar;
+    NSUInteger index = [GTValue(self.controller, @"tabs") indexOfObjectPassingTest:^BOOL(id tab, __unused NSUInteger i, __unused BOOL *stop) {
+        return [GTTabIdentifier(tab) isEqualToString:@"FEwhat_to_watch"];
+    }];
+    if (index == NSNotFound || index >= tabBar.items.count) return;
+    UIView *itemView = GTValue(tabBar.items[index], @"view");
+    if (![itemView isKindOfClass:UIView.class] || !CGRectContainsPoint([itemView convertRect:itemView.bounds toView:tabBar], [hold locationInView:tabBar])) return;
+    [[UIImpactFeedbackGenerator.alloc initWithStyle:UIImpactFeedbackStyleMedium] impactOccurred];
+    YTGOpenSettings();
+}
+
 // The user chose a tab: YouTube's button for it is selected; a search tab opens search and never stays selected.
 - (BOOL)tabBarController:(__unused UITabBarController *)controller shouldSelectTab:(id)tab {
     if (self.syncing) return YES;
@@ -188,6 +202,10 @@ static GTState *GTStateFor(UIView *bar) {
     state.controller.delegate = state;
     state.controller.view.backgroundColor = UIColor.clearColor;
     state.controller.tabBar.tintColor = UIColor.labelColor; // the selected tab: white in dark mode, black in light
+    if (YTGFeatureEnabled(YTGHomeHoldKey)) {
+        UILongPressGestureRecognizer *hold = [[UILongPressGestureRecognizer alloc] initWithTarget:state action:@selector(held:)];
+        [state.controller.tabBar addGestureRecognizer:hold];
+    }
     objc_setAssociatedObject(bar, GTStateKey, state, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return state;
 }
