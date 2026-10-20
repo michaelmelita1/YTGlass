@@ -1,6 +1,7 @@
 // HomeHold
-// Holding the Home tab opens YouTube's settings straight away instead of YTPlus's tab bar menu. YTPlus's tab bar is a
-// system UITabBar with a UIContextMenuInteraction; its delegate's contextMenuInteraction:configurationForMenuAtLocation:
+// Holding the Home tab opens YouTube's settings straight away instead of YTPlus's tab bar menu. YTPlus puts its menu
+// on its own tab bar (a system UITabBar) and on YouTube's tab buttons (YTPivotBarItemView, which the glass tab bar
+// uses), each through a UIContextMenuInteraction; its delegate's contextMenuInteraction:configurationForMenuAtLocation:
 // gets no menu (nil) when the press is on the Home tab (other tabs keep YTPlus's menu). Settings open through YouTube's
 // own command, +[YTICommand applicationSettingsNavigationEndpoint].
 //
@@ -35,6 +36,11 @@ static NSMutableSet<Class> *MSWrapped;
 // The press is on the Home tab of YTPlus's tab bar (matched by YouTube's own label for Home).
 static BOOL MSOnHomeTab(UIContextMenuInteraction *interaction, CGPoint location) {
     UIView *view = interaction.view;
+    static Class itemClass;
+    if (itemClass == Nil) itemClass = NSClassFromString(@"YTPivotBarItemView");
+    for (UIView *v = view; v && itemClass; v = v.superview) { // YouTube's own Home button
+        if ([v isKindOfClass:itemClass]) return [TBHPivotItemIdentifier(v) isEqualToString:@"FEwhat_to_watch"];
+    }
     if (![view isKindOfClass:UITabBar.class]) return NO;
     static Class pivotClass;
     if (pivotClass == Nil) pivotClass = NSClassFromString(@"YTPivotBarView");
@@ -93,6 +99,6 @@ static void MSAddInteraction(UIView *self, SEL _cmd, id<UIInteraction> interacti
 
 __attribute__((constructor)) static void MSInit(void) {
     @autoreleasepool {
-        TBHHookMethod(UITabBar.class, @"addInteraction:", (IMP)MSAddInteraction, &OriginalAddInteraction);
+        TBHHookMethod(UIView.class, @"addInteraction:", (IMP)MSAddInteraction, &OriginalAddInteraction);
     }
 }
