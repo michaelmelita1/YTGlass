@@ -98,6 +98,7 @@ static void MSAddInteraction(UIView *self, SEL _cmd, id<UIInteraction> interacti
 }
 
 __attribute__((constructor)) static void MSInit(void) {
+    if (!YTGFeatureEnabled(YTGHomeHoldKey)) return;
     @autoreleasepool {
         TBHHookMethod(UIView.class, @"addInteraction:", (IMP)MSAddInteraction, &OriginalAddInteraction);
     }

@@ -41,6 +41,7 @@ static int GTPlacingItems;                           // placing them ourselves (
 @property (nonatomic, strong) NSHashTable<UIView *> *faded; // YouTube's background views we made invisible
 @property (nonatomic, assign) CGRect capsuleFrame;          // at rest
 @property (nonatomic, assign) CGFloat stretch;              // capsule's extra width while dragged past its end
+@property (nonatomic, weak) UIView *lensItem;               // the tab the lens rests on (it only animates when this changes)
 // The current press.
 @property (nonatomic, assign) BOOL lifted, dragging, expanded;
 @property (nonatomic, assign) CGPoint startPoint;
@@ -307,7 +308,9 @@ static void GTPlaceLens(GTState *state, NSArray<UIView *> *items) {
                                 CGRectGetWidth(lens.bounds), CGRectGetHeight(lens.bounds));
     BOOL moved = fabs(CGRectGetMidX(current) - CGRectGetMidX(target)) > 1.0 || fabs(CGRectGetMidY(current) - CGRectGetMidY(target)) > 1.0 ||
                  fabs(CGRectGetWidth(current) - CGRectGetWidth(target)) > 1.0 || fabs(CGRectGetHeight(current) - CGRectGetHeight(target)) > 1.0;
-    BOOL animate = !lens.hidden && !CGRectIsEmpty(current) && moved;
+    // Animated only when the selection moved to another tab; the bar changing size (hiding, showing) just snaps it.
+    BOOL animate = !lens.hidden && !CGRectIsEmpty(current) && moved && state.lensItem != nil && state.lensItem != selected;
+    state.lensItem = selected;
     lens.hidden = NO;
     if (!GTIsSystemLens(lens)) {
         lens.layer.cornerRadius = CGRectGetHeight(target) / 2.0;
@@ -536,6 +539,7 @@ static void GTLayout(UIView *bar, GTState *state) {
             lens.center = slide;
         }, ^{ if (self.moving == token) self.moving = nil; });
     });
+    self.lensItem = nearest; // the lens is already on its way there
     if (toSearch) YTGOpenSearch(bar);
     else if (ended && nearest && nearest != selected) GTSelectItem(nearest);
 }

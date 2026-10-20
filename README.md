@@ -28,10 +28,11 @@ Liquid Glass tweaks for YouTube builds with **YTPlus 6.0** and its Liquid Glass 
   item at the end of YTPlus's tab bar)
 - **Hide Navigation bar** (the top bar, with the status bar blur and large titles)
 - **Liquid Glass player**
+- **Hold Home for settings**
 - **Slide Up animation** (on: the animation is disabled)
 - **DeArrow titles**, **DeArrow thumbnails**, **Hide AI channels**, **Hide suspected AI channels** (off by default; they go online)
 
-Hiding the tab bar on scroll, Home's spacing and holding Home for settings are always on.
+Hiding the tab bar on scroll and Home's spacing are always on.
 
 ## How
 
