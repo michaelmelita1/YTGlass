@@ -19,7 +19,7 @@ Liquid Glass tweaks for YouTube builds with **YTPlus 6.0** and its Liquid Glass 
 - **No slide-up animation** when switching tabs: the new tab's page appears straight away.
 - **Even spacing on Home**: Home's blank spacer rows (YouTube's own, and the ones YTPlus's ad blocking leaves
   behind) are collapsed, so its videos are spaced like Subscriptions'.
-- **Settings in YTPlus's tab bar menu**: a Settings item opens YouTube's settings from any tab.
+- **Hold Home for settings**: holding the Home tab opens YouTube's settings (instead of YTPlus's tab bar menu).
 - **DeArrow** (off by default): replaces video titles and/or thumbnails in feeds with [DeArrow](https://dearrow.ajay.app)'s
   community ones.
 - **Hide AI channels** (off by default): removes channels on the [AiSList](https://aisloplist.com) blocklist and/or
@@ -31,7 +31,7 @@ Liquid Glass tweaks for YouTube builds with **YTPlus 6.0** and its Liquid Glass 
 - **Slide Up animation** (on: the animation is disabled)
 - **DeArrow titles**, **DeArrow thumbnails**, **Hide AI channels**, **Hide suspected AI channels** (off by default; they go online)
 
-Hiding the tab bar on scroll, Home's spacing and the Settings menu item are always on.
+Hiding the tab bar on scroll, Home's spacing and holding Home for settings are always on.
 
 ## How
 
@@ -48,8 +48,8 @@ Hiding the tab bar on scroll, Home's spacing and the Settings menu item are alwa
 - `Sources/TabAnimation.m`: turns off YouTube's `+[YTModernTransitions isTabSlideUpAnimationEnabled]` flag.
 - `Sources/HomeSpacing.m`: after Home's `YTTopAlignGridCollectionViewLayout` lays out, its 8pt `ELMCellNode` spacer
   rows get no height and the rows below move up (the rows' own sizes are left alone).
-- `Sources/MenuSettings.m`: adds the Settings item to YTPlus's menu (recognised by its translated Tab bar item) and
-  sends YouTube's `+[YTICommand applicationSettingsNavigationEndpoint]` command.
+- `Sources/HomeHold.m`: holding Home on YTPlus's tab bar: the `UIContextMenuInteraction` delegate gets no menu for a
+  press on the Home tab, and YouTube's `+[YTICommand applicationSettingsNavigationEndpoint]` command opens settings.
 - `Sources/DeArrow.m`: ported from YTKACE v1.1.3; reads the video ID from each feed thumbnail's URL
   (`ELMImageNode`), asks DeArrow's branding API, sets the DeArrow thumbnail on the node and the title on the card's
   title `ELMTextNode`. Results are cached; requests are limited to 4 at once and 90 a minute.
