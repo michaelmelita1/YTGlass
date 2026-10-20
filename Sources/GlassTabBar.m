@@ -17,7 +17,7 @@
 static NSString *const GTSearchIdentifier = @"ytglass.search";
 static const void *GTStateKey = &GTStateKey; // YTPivotBarView -> GTState
 
-@interface GTState : NSObject <UITabBarControllerDelegate>
+@interface GTState : NSObject <UITabBarControllerDelegate, UIGestureRecognizerDelegate>
 @property (nonatomic, weak) UIView *bar;
 @property (nonatomic, strong) UITabBarController *controller;
 @property (nonatomic, copy) NSArray<NSString *> *identifiers; // the tabs the controller was built with
@@ -129,18 +129,31 @@ static void GTSelectTab(GTState *state, NSString *identifier) {
 
 @implementation GTState
 
-// Holding the Home tab opens YouTube's settings (Hold Home for settings), as on YTPlus's bar.
+// Holding the Home tab opens YouTube's settings (Hold Home for settings), as on YTPlus's bar. The tab under the finger
+// is found by its label (the system tab bar's buttons carry their tab's title), matched against YouTube's own name for
+// Home; the hold runs alongside the tab bar's own touch handling.
 - (void)held:(UILongPressGestureRecognizer *)hold {
     if (hold.state != UIGestureRecognizerStateBegan) return;
+    NSString *home = nil;
+    for (UIView *item in [self.items objectEnumerator]) {
+        if ([GTItemIdentifier(item) isEqualToString:@"FEwhat_to_watch"]) home = GTItemTitle(item);
+    }
     UITabBar *tabBar = self.controller.tabBar;
-    NSUInteger index = [GTValue(self.controller, @"tabs") indexOfObjectPassingTest:^BOOL(id tab, __unused NSUInteger i, __unused BOOL *stop) {
-        return [GTTabIdentifier(tab) isEqualToString:@"FEwhat_to_watch"];
-    }];
-    if (index == NSNotFound || index >= tabBar.items.count) return;
-    UIView *itemView = GTValue(tabBar.items[index], @"view");
-    if (![itemView isKindOfClass:UIView.class] || !CGRectContainsPoint([itemView convertRect:itemView.bounds toView:tabBar], [hold locationInView:tabBar])) return;
+    UIView *hit = home.length ? [tabBar hitTest:[hold locationInView:tabBar] withEvent:nil] : nil;
+    BOOL onHome = NO;
+    for (UIView *view = hit; view && view != tabBar.superview && !onHome; view = view.superview) {
+        onHome = [view.accessibilityLabel isEqualToString:home];
+        for (UIView *sub in view.subviews) {
+            if ([sub isKindOfClass:UILabel.class] && [((UILabel *)sub).text isEqualToString:home]) onHome = YES;
+        }
+    }
+    if (!onHome) return;
     [[UIImpactFeedbackGenerator.alloc initWithStyle:UIImpactFeedbackStyleMedium] impactOccurred];
     YTGOpenSettings();
+}
+
+- (BOOL)gestureRecognizer:(__unused UIGestureRecognizer *)a shouldRecognizeSimultaneouslyWithGestureRecognizer:(__unused UIGestureRecognizer *)b {
+    return YES;
 }
 
 // The user chose a tab: YouTube's button for it is selected; a search tab opens search and never stays selected.
@@ -204,6 +217,8 @@ static GTState *GTStateFor(UIView *bar) {
     state.controller.tabBar.tintColor = UIColor.labelColor; // the selected tab: white in dark mode, black in light
     if (YTGFeatureEnabled(YTGHomeHoldKey)) {
         UILongPressGestureRecognizer *hold = [[UILongPressGestureRecognizer alloc] initWithTarget:state action:@selector(held:)];
+        hold.delegate = state;
+        hold.cancelsTouchesInView = NO;
         [state.controller.tabBar addGestureRecognizer:hold];
     }
     objc_setAssociatedObject(bar, GTStateKey, state, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
