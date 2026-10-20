@@ -51,10 +51,28 @@ static BOOL MSOnHomeTab(UIContextMenuInteraction *interaction, CGPoint location)
     return NO;
 }
 
+static NSTimeInterval const MSExtraHold = 0.3; // held this much longer than iOS's own menu needs
+
+// A finger is still on the view (one of its gesture recognizers is still tracking a touch).
+static BOOL MSStillHeld(UIView *view) {
+    for (UIView *v = view; v != nil; v = v.superview) {
+        for (UIGestureRecognizer *gesture in v.gestureRecognizers) {
+            if (gesture.numberOfTouches > 0) return YES;
+        }
+        if (v != view) break; // the view and its holder
+    }
+    return NO;
+}
+
 static UIContextMenuConfiguration *MSConfiguration(id self, SEL _cmd, UIContextMenuInteraction *interaction, CGPoint location) {
     if (MSOnHomeTab(interaction, location)) {
-        [[UIImpactFeedbackGenerator.alloc initWithStyle:UIImpactFeedbackStyleMedium] impactOccurred];
-        dispatch_async(dispatch_get_main_queue(), ^{ MSOpenSettings(); });
+        // Settings open after a little longer, if the finger is still down then (letting go earlier does nothing).
+        __weak UIView *view = interaction.view;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(MSExtraHold * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (!MSStillHeld(view)) return;
+            [[UIImpactFeedbackGenerator.alloc initWithStyle:UIImpactFeedbackStyleMedium] impactOccurred];
+            MSOpenSettings();
+        });
         return nil; // no menu
     }
     IMP original = NULL;
@@ -92,6 +110,7 @@ static void MSAddInteraction(UIView *self, SEL _cmd, id<UIInteraction> interacti
 }
 
 __attribute__((constructor)) static void MSInit(void) {
+    if (!YTGFeatureEnabled(YTGHomeHoldKey)) return;
     @autoreleasepool {
         TBHHookMethod(UITabBar.class, @"addInteraction:", (IMP)MSAddInteraction, &OriginalAddInteraction);
     }

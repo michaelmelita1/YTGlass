@@ -23,6 +23,7 @@ static inline BOOL TBHHookMethod(Class cls, NSString *selectorName, IMP replacem
 extern NSString *const YTGTopBarKey; // no top bar, status bar blur, large titles (HideTopBar.m)
 extern NSString *const YTGPlayerKey; // Liquid Glass player controls (PlayerGlass.m)
 extern NSString *const YTGSlideUpKey; // no slide-up animation when switching tabs (TabAnimation.m)
+extern NSString *const YTGHomeHoldKey;          // holding Home opens settings (HomeHold.m)
 extern NSString *const YTGDeArrowTitlesKey;     // DeArrow community titles (DeArrow.m)
 extern NSString *const YTGDeArrowThumbnailsKey; // DeArrow thumbnails (DeArrow.m)
 extern NSString *const YTGHideAIKey;            // AiSList blocklist (AiSList.m)
