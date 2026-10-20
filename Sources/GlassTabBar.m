@@ -3,7 +3,7 @@
 // YTPlus's Liquid Glass tab bar off): a glass capsule holding YouTube's own tab buttons, iOS's liquid lens behind the
 // selected tab, and (Search: Separate) a round glass search button.
 //
-// Touch: pressing lifts the lens (it bends the tabs under it, iOS's own effect) and swells the bar, dragging moves it across the tabs, letting go
+// Touch: pressing lifts the lens (it bends the tabs under it, iOS's own effect), dragging moves it across the tabs, letting go
 // selects the nearest tab and the lens drops back with a bounce; tapping the selected tab bumps it. Capsule and search
 // button sit in one UIGlassContainerEffect, so iOS merges their glass when they come close: dragging past the last tab
 // stretches the capsule into the button, and letting go there opens search, like the iOS 26 Phone app.
@@ -17,7 +17,6 @@
 #import "Common.h"
 
 static CGFloat const GTMargin = 21.0;        // capsule to the screen edges
-static CGFloat const GTPressedScale = 1.04;  // while pressed, the whole bar swells (as iOS 26's tab bar does)
 static CGFloat const GTSearchGap = 12.0;     // capsule to the search button
 static CGFloat const GTMergeSpacing = 10.0;  // glass closer than this merges (just under the gap)
 static CGFloat const GTLensInset = 4.0;      // resting lens inside the capsule
@@ -43,7 +42,7 @@ static int GTPlacingItems;                           // placing them ourselves (
 @property (nonatomic, assign) CGFloat stretch;              // capsule's extra width while dragged past its end
 @property (nonatomic, weak) UIView *lensItem;               // the tab the lens rests on (it only animates when this changes)
 // The current press.
-@property (nonatomic, assign) BOOL lifted, dragging, expanded;
+@property (nonatomic, assign) BOOL lifted, dragging;
 @property (nonatomic, assign) CGPoint startPoint;
 @property (nonatomic, assign) CGFloat restingWidth, anchorX;
 @property (nonatomic, weak) UIView *touchedItem;
@@ -267,30 +266,9 @@ static void GTLowerOnArrival(GTState *state, CGFloat x, id token, dispatch_block
     });
 }
 
-// Scaled about point (in the bar), for a view that's a direct subview of the bar.
-static CGAffineTransform GTScaleAbout(UIView *view, CGPoint point, CGFloat scale) {
-    CGFloat dx = point.x - view.center.x, dy = point.y - view.center.y;
-    return CGAffineTransformTranslate(CGAffineTransformScale(CGAffineTransformMakeTranslation(dx, dy), scale, scale), -dx, -dy);
-}
-
-// The whole bar (glass, lens and YouTube's buttons) swells about the capsule's centre while pressed, and springs back.
-static void GTSetExpanded(GTState *state, BOOL expanded) {
-    if (state.expanded == expanded) return;
-    state.expanded = expanded;
-    GTTrack(state, 0.7);
-    UIView *bar = state.bar, *items = GTItemsContainer(bar);
-    CGPoint middle = CGPointMake(CGRectGetMidX(state.capsuleFrame), CGRectGetMidY(state.capsuleFrame));
-    CGFloat scale = expanded ? GTPressedScale : 1.0;
-    GTSpring(0.4, expanded ? 0.5 : 0.3, ^{
-        state.container.transform = GTScaleAbout(state.container, middle, scale);
-        if (items) items.transform = GTScaleAbout(items, middle, scale);
-    });
-}
-
 // Lifted, the lens bends the real tabs below it (iOS's own effect: no drawn copy of them).
 static void GTLiftLens(GTState *state, CGSize size, CGPoint center) {
     UIView *lens = state.lens;
-    GTSetExpanded(state, YES);
     state.lifted = YES;
     GTTrack(state, 0.8);
     GTSetLifted(lens, YES, ^{ lens.bounds = CGRectMake(0.0, 0.0, size.width, size.height); }, nil);
@@ -384,8 +362,7 @@ static void GTLayout(UIView *bar, GTState *state) {
     CGFloat groupWidth = width + (withSearch ? GTSearchGap + height : 0.0);
     state.capsuleFrame = CGRectMake((CGRectGetWidth(bar.bounds) - groupWidth) / 2.0, top, width, height);
 
-    state.container.bounds = CGRectMake(0.0, 0.0, CGRectGetWidth(bar.bounds), CGRectGetHeight(bar.bounds)); // not frame: it may be scaled
-    state.container.center = CGPointMake(CGRectGetMidX(bar.bounds), CGRectGetMidY(bar.bounds));
+    state.container.frame = bar.bounds;
     if (state.container.superview != bar) [bar insertSubview:state.container atIndex:0];
     else if (bar.subviews.firstObject != state.container) [bar sendSubviewToBack:state.container];
     GTPlaceCapsule(state);
@@ -511,7 +488,6 @@ static void GTLayout(UIView *bar, GTState *state) {
     BOOL ended = press.state == UIGestureRecognizerStateEnded;
     BOOL toSearch = ended && dragging && !self.search.hidden &&
                     CGRectContainsPoint(CGRectInset(self.search.frame, -6.0, -6.0), [bar convertPoint:point toView:self.container.contentView]);
-    GTSetExpanded(self, NO);
     if (self.stretch != 0.0) {
         self.stretch = 0.0;
         GTSpring(0.45, 0.3, ^{ GTPlaceCapsule(self); });
