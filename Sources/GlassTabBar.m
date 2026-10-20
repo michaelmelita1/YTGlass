@@ -3,13 +3,13 @@
 // YTPlus's Liquid Glass tab bar off): a glass capsule holding YouTube's own tab buttons, iOS's liquid lens behind the
 // selected tab, and (Search: Separate) a round glass search button.
 //
-// Touch: pressing lifts the lens (it magnifies the tabs under it), dragging moves it across the tabs, letting go
+// Touch: pressing lifts the lens (it bends the tabs under it, iOS's own effect) and swells the bar, dragging moves it across the tabs, letting go
 // selects the nearest tab and the lens drops back with a bounce; tapping the selected tab bumps it. Capsule and search
 // button sit in one UIGlassContainerEffect, so iOS merges their glass when they come close: dragging past the last tab
 // stretches the capsule into the button, and letting go there opens search, like the iOS 26 Phone app.
 //
 // The capsule's geometry, the way YouTube's bar is cleared and the lens (_UILiquidLensView with a _UITabSelectionView
-// resting background, lifted over a tinted copy of the tabs) are ported from YTKACE (https://github.com/itzzace/ytkace)
+// resting background) are ported from YTKACE (https://github.com/itzzace/ytkace)
 // v1.1.3, Tweak/Features/Navigation/TabBarHooks.mm. MIT License, Copyright (c) 2026 YTKACE contributors. See LICENSE.
 //
 // Pure Objective-C runtime swizzling: no CydiaSubstrate / ElleKit dependency.
@@ -33,8 +33,6 @@ static int GTPlacingItems;                           // placing them ourselves (
 @property (nonatomic, strong) UIVisualEffectView *container, *capsule, *search;
 @property (nonatomic, strong) UIView *searchItem;     // Search: Integrated, the last slot in the capsule
 @property (nonatomic, strong) UIView *lens;           // _UILiquidLensView (a plain pill where that's missing)
-@property (nonatomic, strong) UIView *magnified;      // the tinted copy of the tabs the lifted lens shows
-@property (nonatomic, weak) UIView *holed;            // the tabs' container, masked under the lens while lifted
 @property (nonatomic, strong) id moving;              // set while the lens is being moved by touch or animation
 @property (nonatomic, strong) CADisplayLink *link;    // keeps the copy's mask on the lens while it moves
 @property (nonatomic, assign) CFTimeInterval linkUntil;
@@ -48,7 +46,6 @@ static int GTPlacingItems;                           // placing them ourselves (
 @property (nonatomic, assign) CGPoint startPoint;
 @property (nonatomic, assign) CGFloat restingWidth, anchorX;
 @property (nonatomic, weak) UIView *touchedItem;
-@property (nonatomic, assign) NSUInteger pressID;
 @end
 
 #pragma mark - Glass
@@ -248,39 +245,6 @@ static void GTSetLifted(UIView *lens, BOOL lifted, dispatch_block_t animations, 
     }
 }
 
-// The magnified copy follows the lens (masked to it), and the real tabs are cut out under it.
-static void GTSyncMask(GTState *state) {
-    UIView *lens = state.lens, *copy = state.magnified;
-    if (copy == nil || lens.superview == nil) return;
-    CALayer *shown = lens.layer.presentationLayer ?: lens.layer;
-    CGRect frame = [lens.superview convertRect:shown.frame toView:copy];
-    UIView *mask = copy.maskView;
-    if (mask == nil) {
-        mask = [UIView new];
-        mask.backgroundColor = UIColor.blackColor;
-        mask.layer.cornerCurve = kCACornerCurveContinuous;
-        copy.maskView = mask;
-    }
-    mask.frame = frame;
-    mask.layer.cornerRadius = CGRectGetHeight(frame) / 2.0;
-    UIView *items = state.holed;
-    if (items == nil) return;
-    CAShapeLayer *hole = [items.layer.mask isKindOfClass:CAShapeLayer.class] ? (CAShapeLayer *)items.layer.mask : nil;
-    if (hole == nil) {
-        hole = [CAShapeLayer layer];
-        hole.fillRule = kCAFillRuleEvenOdd;
-        items.layer.mask = hole;
-    }
-    CGRect cut = CGRectInset([lens.superview convertRect:shown.frame toView:items], 4.0, 4.0);
-    UIBezierPath *path = [UIBezierPath bezierPathWithRect:CGRectInset(items.bounds, -200.0, -200.0)];
-    [path appendPath:[UIBezierPath bezierPathWithRoundedRect:cut cornerRadius:CGRectGetHeight(cut) / 2.0]];
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
-    hole.frame = items.bounds;
-    hole.path = path.CGPath;
-    [CATransaction commit];
-}
-
 static void GTTrack(GTState *state, CFTimeInterval seconds) {
     state.linkUntil = MAX(state.linkUntil, CACurrentMediaTime() + seconds);
     if (state.link == nil) {
@@ -300,87 +264,6 @@ static void GTLowerOnArrival(GTState *state, CGFloat x, id token, dispatch_block
         state.lowerOnArrival = nil;
         pending();
     });
-}
-
-static void GTClearMagnifier(GTState *state) {
-    state.magnified.hidden = YES;
-    state.holed.layer.mask = nil;
-    state.holed = nil;
-}
-
-// A copy of the tabs, every one drawn selected and turned into a single tint, for the lifted lens to magnify.
-static UIView *GTStencil(UIView *items, NSArray<UIView *> *tabs) {
-    CGSize size = items.bounds.size;
-    CGFloat scale = items.window.screen.scale ?: 3.0;
-    size_t width = (size_t)ceil(size.width * scale), height = (size_t)ceil(size.height * scale);
-    if (width == 0 || height == 0) return nil;
-    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
-    CGContextRef context = CGBitmapContextCreate(NULL, width, height, 8, width * 4, space,
-                                                 (CGBitmapInfo)kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
-    CGColorSpaceRelease(space);
-    if (context == NULL) return nil;
-    CGContextTranslateCTM(context, 0.0, (CGFloat)height);
-    CGContextScaleCTM(context, scale, -scale);
-    SEL setSelected = NSSelectorFromString(@"setSelected:");
-    NSMutableArray<UIView *> *flipped = [NSMutableArray array];
-    for (UIView *tab in tabs) {
-        if (TBHPivotItemSelected(tab) || ![tab respondsToSelector:setSelected]) continue;
-        ((void (*)(id, SEL, BOOL))objc_msgSend)(tab, setSelected, YES);
-        [tab layoutIfNeeded];
-        [flipped addObject:tab];
-    }
-    CALayer *hole = items.layer.mask;
-    items.layer.mask = nil;
-    [items.layer renderInContext:context];
-    items.layer.mask = hole;
-    for (UIView *tab in flipped) {
-        ((void (*)(id, SEL, BOOL))objc_msgSend)(tab, setSelected, NO);
-        [tab layoutIfNeeded];
-    }
-    // Light or dark icons decide the tint; each pixel becomes an alpha level by its contrast.
-    uint8_t *pixels = CGBitmapContextGetData(context);
-    double total = 0.0, weight = 0.0;
-    for (size_t i = 0; i < width * height; i++) {
-        uint8_t *p = pixels + i * 4;
-        if (p[3] < 128) continue;
-        total += (double)MAX(p[0], MAX(p[1], p[2])) / (double)p[3];
-        weight += 1.0;
-    }
-    BOOL bright = weight == 0.0 || total / weight > 0.5;
-    for (size_t i = 0; i < width * height; i++) {
-        uint8_t *p = pixels + i * 4;
-        uint8_t level = 0;
-        if (p[3] > 0) {
-            CGFloat color = (CGFloat)MAX(p[0], MAX(p[1], p[2])) / (CGFloat)p[3];
-            CGFloat contrast = bright ? color : 1.0 - color;
-            level = (uint8_t)(MAX(0.0, MIN(1.0, (contrast - 0.5) / 0.35)) * (CGFloat)p[3]);
-        }
-        p[0] = p[1] = p[2] = p[3] = level;
-    }
-    CGImageRef image = CGBitmapContextCreateImage(context);
-    CGContextRelease(context);
-    if (image == NULL) return nil;
-    UIImageView *copy = [[UIImageView alloc] initWithImage:[[UIImage imageWithCGImage:image scale:scale orientation:UIImageOrientationUp]
-                                                             imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
-    CGImageRelease(image);
-    copy.frame = CGRectMake(0.0, 0.0, size.width, size.height);
-    copy.tintColor = bright ? UIColor.whiteColor : UIColor.blackColor;
-    return copy;
-}
-
-static void GTAttachMagnifier(GTState *state, NSArray<UIView *> *tabs) {
-    [state.magnified removeFromSuperview];
-    state.magnified = nil;
-    UIView *items = GTItemsContainer(state.bar);
-    UIView *copy = items ? GTStencil(items, tabs) : nil;
-    if (copy == nil || state.lens.superview == nil) return;
-    copy.userInteractionEnabled = NO;
-    copy.frame = [items convertRect:items.bounds toView:state.lens.superview];
-    [state.lens.superview insertSubview:copy atIndex:0];
-    GTLensSend(state.lens, @"setLiftedContentView:", copy, 0, NO, 0);
-    state.magnified = copy;
-    state.holed = items;
-    GTSyncMask(state);
 }
 
 // Scaled about point (in the bar), for a view that's a direct subview of the bar.
@@ -403,20 +286,13 @@ static void GTSetExpanded(GTState *state, BOOL expanded) {
     });
 }
 
-static void GTLiftLens(GTState *state, NSArray<UIView *> *tabs, CGSize size, CGPoint center) {
+// Lifted, the lens bends the real tabs below it (iOS's own effect: no drawn copy of them).
+static void GTLiftLens(GTState *state, CGSize size, CGPoint center) {
     UIView *lens = state.lens;
-    NSUInteger pressID = state.pressID;
     GTSetExpanded(state, YES);
-    GTAttachMagnifier(state, tabs);
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.45 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        if (state.lifted && state.pressID == pressID) GTAttachMagnifier(state, GTItems(state.bar)); // after the tabs settle
-    });
     state.lifted = YES;
     GTTrack(state, 0.8);
-    GTSetLifted(lens, YES, ^{
-        lens.bounds = CGRectMake(0.0, 0.0, size.width, size.height);
-        GTSyncMask(state);
-    }, nil);
+    GTSetLifted(lens, YES, ^{ lens.bounds = CGRectMake(0.0, 0.0, size.width, size.height); }, nil);
     GTSpring(0.4, 0.15, ^{ lens.center = center; });
 }
 
@@ -474,7 +350,7 @@ static void GTClearBackground(UIView *bar, GTState *state) {
     UIView *blur = [bar respondsToSelector:blurSel] ? ((id (*)(id, SEL))objc_msgSend)(bar, blurSel) : nil;
     if ([blur isKindOfClass:UIView.class]) blur.hidden = YES;
     for (UIView *sibling in bar.subviews) {
-        if (sibling == state.container || sibling == state.magnified) continue;
+        if (sibling == state.container) continue;
         if (GTHoldsItems(sibling)) {
             sibling.backgroundColor = UIColor.clearColor;
             sibling.opaque = NO;
@@ -548,7 +424,6 @@ static void GTLayout(UIView *bar, GTState *state) {
 @implementation GTState
 
 - (void)tick:(CADisplayLink *)link {
-    GTSyncMask(self);
     if (self.lowerOnArrival) {
         CGFloat x = (self.lens.layer.presentationLayer ?: self.lens.layer).position.x;
         if (fabs(x - self.lowerX) < 8.0) {
@@ -560,7 +435,6 @@ static void GTLayout(UIView *bar, GTState *state) {
     if (link.timestamp > self.linkUntil && self.lowerOnArrival == nil) {
         [self.link invalidate];
         self.link = nil;
-        GTSyncMask(self);
     }
 }
 
@@ -611,14 +485,13 @@ static void GTLayout(UIView *bar, GTState *state) {
         self.lifted = NO;
         self.restingWidth = CGRectGetWidth(resting);
         self.touchedItem = GTItemNearX(self, items, point.x);
-        self.pressID += 1;
-        if (self.touchedItem) GTLiftLens(self, items, liftedSize, center);
+        if (self.touchedItem) GTLiftLens(self, liftedSize, center);
         return;
     }
     if (press.state == UIGestureRecognizerStateChanged) {
         if (!self.dragging && fabs(point.x - self.startPoint.x) > 4.0) {
             self.dragging = YES;
-            if (!self.lifted) { GTLiftLens(self, items, liftedSize, center); return; }
+            if (!self.lifted) { GTLiftLens(self, liftedSize, center); return; }
         }
         if (!self.lifted) return;
         if (fabs(stretch - self.stretch) > 0.25) {
@@ -635,7 +508,6 @@ static void GTLayout(UIView *bar, GTState *state) {
     BOOL ended = press.state == UIGestureRecognizerStateEnded;
     BOOL toSearch = ended && dragging && !self.search.hidden &&
                     CGRectContainsPoint(CGRectInset(self.search.frame, -6.0, -6.0), [bar convertPoint:point toView:self.container.contentView]);
-    self.pressID += 1;
     GTSetExpanded(self, NO);
     if (self.stretch != 0.0) {
         self.stretch = 0.0;
@@ -657,12 +529,8 @@ static void GTLayout(UIView *bar, GTState *state) {
     if (!ended || toSearch || (nearest && GTItemIdentifier(nearest) == nil)) nearest = selected;
     CGRect target = nearest ? [bar convertRect:GTLensFrame(self, items, nearest) toView:host] : lens.frame;
     CGPoint slide = CGPointMake(CGRectGetMidX(target), CGRectGetMidY(target));
-    GTSpring(0.4, 0.15, ^{
-        lens.center = slide;
-        GTSyncMask(self);
-    });
+    GTSpring(0.4, 0.15, ^{ lens.center = slide; });
     GTLowerOnArrival(self, slide.x, token, ^{
-        GTClearMagnifier(self);
         GTSetLifted(lens, NO, ^{
             lens.bounds = CGRectMake(0.0, 0.0, CGRectGetWidth(target), CGRectGetHeight(target));
             lens.center = slide;
