@@ -28,11 +28,10 @@ Liquid Glass tweaks for YouTube builds with **YTPlus 6.0** and its Liquid Glass 
   item at the end of YTPlus's tab bar)
 - **Hide Navigation bar** (the top bar, with the status bar blur and large titles)
 - **Liquid Glass player**
-- **Hold Home for settings**
 - **Slide Up animation** (on: the animation is disabled)
 - **DeArrow titles**, **DeArrow thumbnails**, **Hide AI channels**, **Hide suspected AI channels** (off by default; they go online)
 
-Hiding the tab bar on scroll and Home's spacing are always on.
+Hiding the tab bar on scroll, Home's spacing and holding Home for settings are always on.
 
 ## How
 
@@ -63,6 +62,7 @@ Pure Objective-C runtime swizzling, no CydiaSubstrate/ElleKit dependency. See `L
 
 ## Changelog
 
+- **0.1.2**: holding the Home tab opens YouTube's settings instead of YTPlus's tab bar menu; the Settings item in that menu is removed.
 - **0.1.1**: built on 0.0.6 for Home's smooth scrolling; the mini player moves with the tab bar on every page, with the bar's own animation; the tab bar stays hidden when a list bounces at its end; DeArrow and AiSList back, lighter while scrolling; Slide Up animation renamed; YTPlus Fixes removed (YTPlus fixed the bug); smaller optimisations.
 - **0.0.6**: YTPlus's player buttons (mute, sleep timer, menu) move into the top row and share one glass capsule with settings; the quality label and full screen button share one pill at the bottom; faster tab bar handling (Shorts checks skipped when there's no Shorts tab).
 - **0.0.5**: no slide-up animation when switching tabs (YT Slide Up Animation switch); Home's videos spaced like Subscriptions'; YTPlus Settings Fix renamed YTPlus Fixes; smoother scrolling.
