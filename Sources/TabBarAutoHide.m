@@ -465,18 +465,33 @@ NSString *TBHSelectedTabIdentifier(void) {
     return selected ? TBHItemIdentifier(selected) : nil;
 }
 
-NSString *TBHSelectedTabTitle(void) {
-    UIView *bar = TBHFindBar();
-    UIView *selected = bar ? TBHSelectedItem(bar) : nil;
-    if (selected == nil) return nil;
+// A tab's label as YouTube shows it (in the app's language).
+static NSString *TBHItemTitle(UIView *item) {
     id renderer = nil, title = nil;
-    @try { renderer = [selected valueForKey:@"renderer"]; } @catch (__unused NSException *e) {}
+    @try { renderer = [item valueForKey:@"renderer"]; } @catch (__unused NSException *e) {}
     @try { title = [renderer valueForKey:@"title"]; } @catch (__unused NSException *e) {}
     SEL plain = NSSelectorFromString(@"stringWithFormattingRemoved");
     if (title && ![title isKindOfClass:NSString.class] && [title respondsToSelector:plain]) {
         title = ((id (*)(id, SEL))objc_msgSend)(title, plain);
     }
     if ([title isKindOfClass:NSString.class] && [title length]) return title;
-    NSString *label = selected.accessibilityLabel;
+    NSString *label = item.accessibilityLabel;
     return label.length ? label : nil;
+}
+
+NSString *TBHSelectedTabTitle(void) {
+    UIView *bar = TBHFindBar();
+    UIView *selected = bar ? TBHSelectedItem(bar) : nil;
+    return selected ? TBHItemTitle(selected) : nil;
+}
+
+NSString *TBHTabTitle(NSString *identifier) {
+    UIView *bar = TBHFindBar();
+    if (bar == nil) return nil;
+    NSMutableArray<UIView *> *items = [NSMutableArray array];
+    TBHCollectItems(bar, items);
+    for (UIView *item in items) {
+        if ([TBHItemIdentifier(item) isEqualToString:identifier]) return TBHItemTitle(item);
+    }
+    return nil;
 }

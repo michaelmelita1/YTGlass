@@ -39,6 +39,8 @@ UIView *TBHFindBar(void);
 NSString *TBHSelectedTabIdentifier(void);
 // TabBarAutoHide.m: the selected tab's label as YouTube shows it (in the app's language), or nil.
 NSString *TBHSelectedTabTitle(void);
+// TabBarAutoHide.m: a tab's label as YouTube shows it (e.g. for FEwhat_to_watch), or nil.
+NSString *TBHTabTitle(NSString *identifier);
 
 // HideTopBar.m: YES for a top bar (or wrapper) we made invisible. It still holds the page's search button.
 BOOL TBHTopBarHiddenByUs(UIView *view);
