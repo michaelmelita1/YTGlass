@@ -119,11 +119,6 @@ static BOOL GTHoldsItems(UIView *view) {
     return items.count != 0;
 }
 
-static UIView *GTItemsContainer(UIView *bar) {
-    for (UIView *subview in bar.subviews) if (GTHoldsItems(subview)) return subview;
-    return nil;
-}
-
 // YouTube's tabs, then (Search: Integrated) our Search slot: the lens moves across all of them.
 static NSArray<UIView *> *GTSlots(GTState *state) {
     NSArray<UIView *> *items = GTItems(state.bar);
