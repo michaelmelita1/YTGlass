@@ -411,6 +411,7 @@ __attribute__((constructor)) static void TBSInit(void) {
         char type[8] = { 0 };
         if (optOut) method_getReturnType(optOut, type, sizeof(type));
         if (type[0] == 'B' || type[0] == 'c') TBHHookMethod(results, @"optOutOfFrostedPivotBar", (IMP)TBSSearchOptOut, NULL);
+        if (YTGOptInEnabled(YTGGlassTabBarKey) && NSClassFromString(@"UIGlassEffect")) return; // the glass tab bar does search
         NSInteger mode = YTGSearchMode();
         Class bar = NSClassFromString(@"YTPivotBarView");
         if (bar == Nil || mode == YTGSearchOff) return;

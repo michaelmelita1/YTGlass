@@ -3,8 +3,8 @@
 // YTPlus's Liquid Glass tab bar off): a glass capsule holding YouTube's own tab buttons, iOS's liquid lens behind the
 // selected tab, and (Search: Separate) a round glass search button.
 //
-// Touch: pressing lifts the lens (it bends the tabs under it, iOS's own effect) and swells the glass, dragging moves it across the tabs, letting go
-// selects the nearest tab and the lens drops back with a bounce; tapping the selected tab bumps it. Capsule and search
+// Touch: pressing lifts the lens (it bends the tabs under it, iOS's own effect) and swells the glass, dragging moves
+// it across the tabs, letting go selects the nearest tab and the lens drops back with a bounce; tapping the selected tab bumps it. Capsule and search
 // button sit in one UIGlassContainerEffect, so iOS merges their glass when they come close: dragging past the last tab
 // stretches the capsule into the button, and letting go there opens search, like the iOS 26 Phone app.
 //
@@ -17,7 +17,7 @@
 #import "Common.h"
 
 static CGFloat const GTMargin = 21.0;        // capsule to the screen edges
-static CGFloat const GTPressedScale = 1.04;  // while pressed, the whole bar swells (as iOS 26's tab bar does)
+static CGFloat const GTPressedScale = 1.04;  // while pressed, the glass swells (as iOS 26's tab bar does)
 static CGFloat const GTSearchGap = 12.0;     // capsule to the search button
 static CGFloat const GTMergeSpacing = 10.0;  // glass closer than this merges (just under the gap)
 static CGFloat const GTLensInset = 4.0;      // resting lens inside the capsule
@@ -34,13 +34,14 @@ static int GTPlacingItems;                           // placing them ourselves (
 @property (nonatomic, strong) UIView *searchItem;     // Search: Integrated, the last slot in the capsule
 @property (nonatomic, strong) UIView *lens;           // _UILiquidLensView (a plain pill where that's missing)
 @property (nonatomic, strong) id moving;              // set while the lens is being moved by touch or animation
-@property (nonatomic, strong) CADisplayLink *link;    // keeps the copy's mask on the lens while it moves
+@property (nonatomic, strong) CADisplayLink *link;    // watches the lens arrive (to drop it there)
 @property (nonatomic, assign) CFTimeInterval linkUntil;
 @property (nonatomic, copy) dispatch_block_t lowerOnArrival;
 @property (nonatomic, assign) CGFloat lowerX;
 @property (nonatomic, strong) NSHashTable<UIView *> *faded; // YouTube's background views we made invisible
 @property (nonatomic, assign) CGRect capsuleFrame;          // at rest
 @property (nonatomic, assign) CGFloat stretch;              // capsule's extra width while dragged past its end
+@property (nonatomic, assign) BOOL cleared;                 // YouTube's background is cleared (until it restyles the bar)
 @property (nonatomic, weak) UIView *lensItem;               // the tab the lens rests on (it only animates when this changes)
 // The current press.
 @property (nonatomic, assign) BOOL lifted, dragging, expanded;
@@ -114,12 +115,6 @@ static NSArray<UIView *> *GTItems(UIView *bar) {
     return items;
 }
 
-static BOOL GTHoldsItems(UIView *view) {
-    NSMutableArray *items = [NSMutableArray array];
-    GTCollectItems(view, items);
-    return items.count != 0;
-}
-
 // YouTube's tabs, then (Search: Integrated) our Search slot: the lens moves across all of them.
 static NSArray<UIView *> *GTSlots(GTState *state) {
     NSArray<UIView *> *items = GTItems(state.bar);
@@ -179,11 +174,18 @@ static UIView *GTItemNearX(GTState *state, NSArray<UIView *> *items, CGFloat x) 
     return items[(NSUInteger)MAX(0, MIN((NSInteger)items.count - 1, index))];
 }
 
+// Sets a glass view's frame and radius only when they change: each set makes the glass render again, and the bar lays
+// out many times while it hides and shows.
+static void GTSetGlassFrame(UIView *view, CGRect frame) {
+    if (!CGRectEqualToRect(view.frame, frame)) view.frame = frame;
+    CGFloat radius = CGRectGetHeight(frame) / 2.0;
+    if (fabs(view.layer.cornerRadius - radius) > 0.01) view.layer.cornerRadius = radius;
+}
+
 static void GTPlaceCapsule(GTState *state) {
     CGRect frame = state.capsuleFrame;
     frame.size.width += state.stretch;
-    state.capsule.frame = frame;
-    state.capsule.layer.cornerRadius = CGRectGetHeight(frame) / 2.0;
+    GTSetGlassFrame(state.capsule, frame);
 }
 
 #pragma mark - The lens
@@ -342,13 +344,22 @@ static void GTPlaceLens(GTState *state, NSArray<UIView *> *items) {
 
 // YouTube's own background goes (its blur, and full-height or hairline views that hold no tab button). Also redone
 // when YouTube restyles the bar (it does when the mini player appears).
-static void GTClearBackground(UIView *bar, GTState *state) {
+static void GTClearBackground(UIView *bar, GTState *state, NSArray<UIView *> *items) {
+    if (state.cleared) { // cheap check that YouTube hasn't brought it back some other way
+        SEL blurSel = NSSelectorFromString(@"blurView");
+        UIView *blur = [bar respondsToSelector:blurSel] ? ((id (*)(id, SEL))objc_msgSend)(bar, blurSel) : nil;
+        BOOL back = ([blur isKindOfClass:UIView.class] && !blur.hidden) || (bar.backgroundColor && CGColorGetAlpha(bar.backgroundColor.CGColor) > 0.0);
+        if (!back) return;
+    }
+    state.cleared = YES;
     SEL blurSel = NSSelectorFromString(@"blurView");
     UIView *blur = [bar respondsToSelector:blurSel] ? ((id (*)(id, SEL))objc_msgSend)(bar, blurSel) : nil;
     if ([blur isKindOfClass:UIView.class]) blur.hidden = YES;
     for (UIView *sibling in bar.subviews) {
         if (sibling == state.container) continue;
-        if (GTHoldsItems(sibling)) {
+        BOOL holdsItems = NO;
+        for (UIView *item in items) if ([item isDescendantOfView:sibling]) { holdsItems = YES; break; }
+        if (holdsItems) {
             sibling.backgroundColor = UIColor.clearColor;
             sibling.opaque = NO;
         } else if (sibling.alpha > 0.0 && (CGRectGetHeight(sibling.frame) >= CGRectGetHeight(bar.bounds) * 0.6 || CGRectGetHeight(sibling.frame) <= 1.5)) {
@@ -363,11 +374,10 @@ static void GTClearBackground(UIView *bar, GTState *state) {
 }
 
 static void GTLayout(UIView *bar, GTState *state) {
-    GTClearBackground(bar, state);
-
-    // The capsule: tab height plus 7pt above and below, 21pt from the edges (14pt while pressed), narrower for few tabs
-    // (as YTKACE).
     NSArray<UIView *> *items = GTSlots(state);
+    GTClearBackground(bar, state, items);
+
+    // The capsule: tab height plus 7pt above and below, 21pt from the edges, narrower for few tabs (as YTKACE).
     CGFloat itemHeight = CGRectGetHeight(bar.bounds) - bar.safeAreaInsets.bottom;
     CGFloat height = MAX(itemHeight, 44.0) + 14.0;
     CGFloat top = MIN(0.0, CGRectGetHeight(bar.bounds) - height - 4.0);
@@ -378,17 +388,19 @@ static void GTLayout(UIView *bar, GTState *state) {
     CGFloat groupWidth = width + (withSearch ? GTSearchGap + height : 0.0);
     state.capsuleFrame = CGRectMake((CGRectGetWidth(bar.bounds) - groupWidth) / 2.0, top, width, height);
 
-    state.container.bounds = CGRectMake(0.0, 0.0, CGRectGetWidth(bar.bounds), CGRectGetHeight(bar.bounds)); // not frame: it may be scaled
-    state.container.center = CGPointMake(CGRectGetMidX(bar.bounds), CGRectGetMidY(bar.bounds));
+    CGRect bounds = CGRectMake(0.0, 0.0, CGRectGetWidth(bar.bounds), CGRectGetHeight(bar.bounds)); // not frame: it may be scaled
+    CGPoint center = CGPointMake(CGRectGetMidX(bar.bounds), CGRectGetMidY(bar.bounds));
+    if (!CGRectEqualToRect(state.container.bounds, bounds)) state.container.bounds = bounds;
+    if (!CGPointEqualToPoint(state.container.center, center)) state.container.center = center;
     if (state.container.superview != bar) [bar insertSubview:state.container atIndex:0];
     else if (bar.subviews.firstObject != state.container) [bar sendSubviewToBack:state.container];
     GTPlaceCapsule(state);
     state.search.hidden = !withSearch;
     if (withSearch) {
-        state.search.frame = CGRectMake(CGRectGetMaxX(state.capsuleFrame) + GTSearchGap, top, height, height);
-        state.search.layer.cornerRadius = height / 2.0;
+        GTSetGlassFrame(state.search, CGRectMake(CGRectGetMaxX(state.capsuleFrame) + GTSearchGap, top, height, height));
         UIView *glyph = state.search.contentView.subviews.firstObject;
-        glyph.center = CGPointMake(height / 2.0, height / 2.0);
+        CGPoint glyphCenter = CGPointMake(height / 2.0, height / 2.0);
+        if (!CGPointEqualToPoint(glyph.center, glyphCenter)) glyph.center = glyphCenter;
     }
 
     // YouTube's tab buttons, one slot each across the capsule (they stay YouTube's: taps on them work as before), and
@@ -396,7 +408,8 @@ static void GTLayout(UIView *bar, GTState *state) {
     state.searchItem.hidden = ![items containsObject:state.searchItem];
     if (!state.searchItem.hidden) {
         CGRect slot = GTSlot(state.capsuleFrame, items.count, items.count - 1);
-        state.searchItem.frame = [bar convertRect:CGRectInset(slot, 0.0, GTLensInset) toView:state.container.contentView];
+        CGRect itemFrame = [bar convertRect:CGRectInset(slot, 0.0, GTLensInset) toView:state.container.contentView];
+        if (!CGRectEqualToRect(state.searchItem.frame, itemFrame)) state.searchItem.frame = itemFrame;
         if (state.searchItem.superview != state.container.contentView) [state.container.contentView addSubview:state.searchItem];
     }
     for (NSUInteger index = 0; index < items.count; index++) {
@@ -406,7 +419,10 @@ static void GTLayout(UIView *bar, GTState *state) {
         CGRect current = [item convertRect:item.bounds toView:bar];
         CGRect target = CGRectMake(CGRectGetMinX(slot), CGRectGetMidY(slot) - CGRectGetHeight(current) / 2.0, CGRectGetWidth(slot), CGRectGetHeight(current));
         CGRect local = CGRectIntegral([bar convertRect:target toView:item.superview]);
-        objc_setAssociatedObject(item, GTItemFrameKey, [NSValue valueWithCGRect:local], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        NSValue *known = objc_getAssociatedObject(item, GTItemFrameKey);
+        if (known == nil || !CGRectEqualToRect(known.CGRectValue, local)) {
+            objc_setAssociatedObject(item, GTItemFrameKey, [NSValue valueWithCGRect:local], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
         if (!CGRectEqualToRect(CGRectIntegral(item.frame), local)) {
             GTPlacingItems++;
             item.frame = local;
@@ -623,14 +639,20 @@ static void GTItemSetBounds(UIView *self, SEL _cmd, CGRect bounds) {
 
 static IMP OriginalBarLayout, OriginalBarHitTest, OriginalItemSetSelected, OriginalStyleColors, OriginalSetBackgroundStyle;
 
+static void GTRestyled(UIView *bar) {
+    GTState *state = GTStateFor(bar);
+    state.cleared = NO;
+    GTClearBackground(bar, state, GTItems(bar));
+}
+
 static void GTStyleColors(UIView *self, SEL _cmd) {
     ((void (*)(id, SEL))OriginalStyleColors)(self, _cmd);
-    GTClearBackground(self, GTStateFor(self));
+    GTRestyled(self);
 }
 
 static void GTSetBackgroundStyle(UIView *self, SEL _cmd, int style) {
     ((void (*)(id, SEL, int))OriginalSetBackgroundStyle)(self, _cmd, style);
-    GTClearBackground(self, GTStateFor(self));
+    GTRestyled(self);
 }
 
 static void GTBarLayout(UIView *self, SEL _cmd) {
