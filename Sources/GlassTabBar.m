@@ -26,6 +26,7 @@ static CGFloat const GTStretchMax = 28.0;    // how far the capsule follows a dr
 
 static const void *GTStateKey = &GTStateKey; // YTPivotBarView -> GTState
 static const void *GTItemFrameKey = &GTItemFrameKey; // YouTube's tab button -> NSValue: the frame we gave it
+static int GTPlacingItems;                           // placing them ourselves (not overridden)
 
 @interface GTState : NSObject <UIGestureRecognizerDelegate>
 @property (nonatomic, weak) UIView *bar;
@@ -533,7 +534,11 @@ static void GTLayout(UIView *bar, GTState *state) {
         CGRect target = CGRectMake(CGRectGetMinX(slot), CGRectGetMidY(slot) - CGRectGetHeight(current) / 2.0, CGRectGetWidth(slot), CGRectGetHeight(current));
         CGRect local = CGRectIntegral([bar convertRect:target toView:item.superview]);
         objc_setAssociatedObject(item, GTItemFrameKey, [NSValue valueWithCGRect:local], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        if (!CGRectEqualToRect(CGRectIntegral(item.frame), local)) item.frame = local;
+        if (!CGRectEqualToRect(CGRectIntegral(item.frame), local)) {
+            GTPlacingItems++;
+            item.frame = local;
+            GTPlacingItems--;
+        }
     }
     GTPlaceLens(state, items);
 }
@@ -729,13 +734,25 @@ static GTState *GTStateFor(UIView *bar) {
 
 #pragma mark - Hooks
 
-// YouTube lays its tab buttons out again on its own passes, which put them back where they were for a frame (the
-// buttons jumped): a button we've placed keeps our frame.
-static IMP OriginalItemSetFrame;
+// YouTube lays its tab buttons out again on its own passes (by frame, or by centre and bounds), which put them back
+// where it wants them for a frame (the buttons jumped): a button we've placed keeps our frame, however it's moved.
+static IMP OriginalItemSetFrame, OriginalItemSetCenter, OriginalItemSetBounds;
 
 static void GTItemSetFrame(UIView *self, SEL _cmd, CGRect frame) {
-    NSValue *ours = objc_getAssociatedObject(self, GTItemFrameKey);
+    NSValue *ours = GTPlacingItems ? nil : objc_getAssociatedObject(self, GTItemFrameKey);
     ((void (*)(id, SEL, CGRect))OriginalItemSetFrame)(self, _cmd, ours ? ours.CGRectValue : frame);
+}
+
+static void GTItemSetCenter(UIView *self, SEL _cmd, CGPoint center) {
+    NSValue *ours = GTPlacingItems ? nil : objc_getAssociatedObject(self, GTItemFrameKey);
+    if (ours) center = CGPointMake(CGRectGetMidX(ours.CGRectValue), CGRectGetMidY(ours.CGRectValue));
+    ((void (*)(id, SEL, CGPoint))OriginalItemSetCenter)(self, _cmd, center);
+}
+
+static void GTItemSetBounds(UIView *self, SEL _cmd, CGRect bounds) {
+    NSValue *ours = GTPlacingItems ? nil : objc_getAssociatedObject(self, GTItemFrameKey);
+    if (ours) bounds.size = ours.CGRectValue.size;
+    ((void (*)(id, SEL, CGRect))OriginalItemSetBounds)(self, _cmd, bounds);
 }
 
 static IMP OriginalBarLayout, OriginalBarHitTest, OriginalItemSetSelected, OriginalStyleColors, OriginalSetBackgroundStyle;
@@ -783,6 +800,9 @@ __attribute__((constructor)) static void GTInit(void) {
         TBHHookMethod(bar, @"styleBackgroundColors", (IMP)GTStyleColors, &OriginalStyleColors);
         TBHHookMethod(bar, @"setBackgroundStyle:", (IMP)GTSetBackgroundStyle, &OriginalSetBackgroundStyle);
         TBHHookMethod(NSClassFromString(@"YTPivotBarItemView"), @"setSelected:", (IMP)GTItemSetSelected, &OriginalItemSetSelected);
-        TBHHookMethod(NSClassFromString(@"YTPivotBarItemView"), @"setFrame:", (IMP)GTItemSetFrame, &OriginalItemSetFrame);
+        Class item = NSClassFromString(@"YTPivotBarItemView");
+        TBHHookMethod(item, @"setFrame:", (IMP)GTItemSetFrame, &OriginalItemSetFrame);
+        TBHHookMethod(item, @"setCenter:", (IMP)GTItemSetCenter, &OriginalItemSetCenter);
+        TBHHookMethod(item, @"setBounds:", (IMP)GTItemSetBounds, &OriginalItemSetBounds);
     }
 }
