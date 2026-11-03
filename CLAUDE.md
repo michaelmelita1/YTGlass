@@ -6,7 +6,7 @@ Maintainer: Michael Melita. See README.md for features and file layout.
 ## Working with Michael
 
 - Keep replies short; don't explain how a fix works unless asked. Don't say "I haven't tested it on a phone".
-- Deliver the dylib (`dist/YTGlass.dylib`) for testing. Build a deb or IPA only when asked.
+- Deliver debug builds as an IPA in `~/Downloads/YTPlus_6.0_YTGlass_<version>.ipa` (see Build), deleting the previous debug IPA. Build a deb only when asked.
 - When he says something doesn't work, strip the failed attempt completely before trying again. Keep the
   code clean: no dead code, no leftovers from failed attempts.
 - When stuck on a bug, build a temporary on-screen diagnostic (a yellow label with live values and a log
