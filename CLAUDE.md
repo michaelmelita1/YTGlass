@@ -1,6 +1,6 @@
 # YTGlass: notes for Claude
 
-Liquid Glass tweaks for YouTube 21.39.4 builds with YTPlus 6.0 b2 (YTLite) and its Liquid Glass tab bar.
+Liquid Glass tweaks for YouTube 21.43.5 builds with YTPlus 6.0 (YTLite) and its Liquid Glass tab bar.
 Maintainer: Michael Melita. See README.md for features and file layout.
 
 ## Working with Michael
@@ -23,7 +23,7 @@ Maintainer: Michael Melita. See README.md for features and file layout.
   No changelog entry, tag or release for debug builds.
 - Only when Michael says to release: set the plain version, add one line to the README changelog,
   commit, tag `vX.Y.Z`, push, and create a GitHub release with `YTGlass.dylib` and the `.deb` attached
-  (never the IPA: when he asks for one, build it straight to `~/Downloads/YTPlus_6.0b2_YTGlass_X.Y.Z.ipa` and never keep a copy in the repo;
+  (never the IPA: when he asks for one, build it straight to `~/Downloads/YTPlus_6.0_YTGlass_X.Y.Z.ipa` and never keep a copy in the repo;
   reuse the dylib already built for that version, `dist/YTGlass.dylib` or the release asset, instead of rebuilding).
 
 ## Build
@@ -36,7 +36,7 @@ make clean && make package FINALPACKAGE=1 \
   ADDITIONAL_CFLAGS="-Wunused-const-variable -Wunused-parameter -Wunreachable-code-aggressive -Wunused-function"
 ```
 
-The build must be warning-free. Delete old `.deb`s in `packages/` before each build (released ones are on GitHub). IPA: `bash Scripts/inject-ipa.sh "stock/YTPlus 6.0b2 21.39.4.ipa" dist/YTGlass.dylib ~/Downloads/YTPlus_6.0b2_YTGlass_X.Y.Z.ipa`
+The build must be warning-free. Delete old `.deb`s in `packages/` before each build (released ones are on GitHub). IPA: `bash Scripts/inject-ipa.sh stock/YTPlus_6.0_21.43.5.ipa dist/YTGlass.dylib ~/Downloads/YTPlus_6.0_YTGlass_X.Y.Z.ipa`
 (the stock IPA is kept in `stock/`, which is gitignored; if it is missing, ask Michael to upload it).
 
 ## Settings
@@ -46,7 +46,7 @@ Category `'ytgl'`. NSUserDefaults keys: `YTGlass_SearchMode` (0 Off, 1 Separate,
 `YTGlass_HideTopBar`, `YTGlass_PlayerGlass`. Hide-tab-bar-on-scroll is always on. Each feature reads its
 switch at launch, so changes apply after a restart (the page's bottom row says so).
 
-## YouTube internals learned (21.39.4)
+## YouTube internals learned (21.39.4; all hooked names still present in 21.43.5)
 
 - Top bar: `YTHeaderView` inside `YTHeaderContentComboView` (`childView`, `_blurContainerView`,
   `headerView`). Collapse via `scrollHeaderViewWithOffset:`. A tab's pages can share one header
