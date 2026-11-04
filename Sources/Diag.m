@@ -1,6 +1,10 @@
-// TEMPORARY DIAGNOSTIC (0.2.0~debug2): logs where YTPlus 6.0 puts its tab bar. Read with idevicesyslog, grep YTGDIAG.
+// TEMPORARY DIAGNOSTIC (0.2.0~debug2..4): logs where YTPlus 6.0 puts its tab bar. Read with idevicesyslog, grep YTGDIAG.
 
 #import "Common.h"
+#import <os/log.h>
+
+// Public (unredacted) log line.
+#define YTGDLog(...) os_log(OS_LOG_DEFAULT, "%{public}s", [NSString stringWithFormat:__VA_ARGS__].UTF8String)
 
 static NSString *YTGDChain(UIView *view) {
     NSMutableArray *parts = [NSMutableArray array];
@@ -25,10 +29,10 @@ static void YTGDDump(NSString *reason) {
         for (UIWindow *window in ((UIWindowScene *)scene).windows) {
             NSMutableArray *tabBars = [NSMutableArray array], *pivots = [NSMutableArray array];
             YTGDCollect(window, tabBars, pivots, pivot);
-            for (UIView *v in tabBars) NSLog(@"YTGDIAG %@ TABBAR %@", reason, YTGDChain(v));
+            for (UIView *v in tabBars) YTGDLog(@"YTGDIAG %@ TABBAR %@", reason, YTGDChain(v));
             for (UIView *v in pivots) {
-                NSLog(@"YTGDIAG %@ PIVOT %@", reason, YTGDChain(v));
-                for (UIView *s in v.subviews) NSLog(@"YTGDIAG %@ PIVOT-SUB %@ hidden=%d alpha=%.2f", reason, NSStringFromClass(s.class), s.hidden, s.alpha);
+                YTGDLog(@"YTGDIAG %@ PIVOT %@", reason, YTGDChain(v));
+                for (UIView *s in v.subviews) YTGDLog(@"YTGDIAG %@ PIVOT-SUB %@ hidden=%d alpha=%.2f", reason, NSStringFromClass(s.class), s.hidden, s.alpha);
             }
         }
     }
@@ -56,10 +60,10 @@ __attribute__((constructor)) static void YTGDInit(void) {
             SEL sel = NSSelectorFromString(name);
             unsigned int n = 0;
             Method *methods = class_copyMethodList(classes[i], &n);
-            for (unsigned int j = 0; j < n; j++) if (method_getName(methods[j]) == sel) NSLog(@"YTGDIAG METHOD -[%s %@]", class_getName(classes[i]), name);
+            for (unsigned int j = 0; j < n; j++) if (method_getName(methods[j]) == sel) YTGDLog(@"YTGDIAG METHOD -[%s %@]", class_getName(classes[i]), name);
             free(methods);
             methods = class_copyMethodList(object_getClass(classes[i]), &n);
-            for (unsigned int j = 0; j < n; j++) if (method_getName(methods[j]) == sel) NSLog(@"YTGDIAG METHOD +[%s %@]", class_getName(classes[i]), name);
+            for (unsigned int j = 0; j < n; j++) if (method_getName(methods[j]) == sel) YTGDLog(@"YTGDIAG METHOD +[%s %@]", class_getName(classes[i]), name);
             free(methods);
         }
     }
