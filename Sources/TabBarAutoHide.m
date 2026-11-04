@@ -284,9 +284,27 @@ static CFTimeInterval TBHLastTouchTime;     // last time any scroll view was dra
 static CGFloat TBHLastOffset;
 static const void *TBHPanKey = &TBHPanKey;
 
+// A list inside the video page (the player and the list under it). Its scrolling must never move the tab bar: YouTube's
+// bar sits above the video page, so showing it there put the bar over the player. Decided once per list.
+static const void *TBHInPlayerKey = &TBHInPlayerKey;
+
+static BOOL TBHInPlayer(UIScrollView *scrollView) {
+    NSNumber *known = objc_getAssociatedObject(scrollView, TBHInPlayerKey);
+    if (known) return known.boolValue;
+    static Class watchLayer;
+    if (watchLayer == Nil) watchLayer = NSClassFromString(@"YTWatchLayerView");
+    BOOL inPlayer = NO;
+    for (UIView *v = scrollView.superview; v != nil && !inPlayer; v = v.superview) {
+        inPlayer = watchLayer ? [v isKindOfClass:watchLayer] : [NSStringFromClass(v.class) hasPrefix:@"YTWatch"];
+    }
+    objc_setAssociatedObject(scrollView, TBHInPlayerKey, @(inPlayer), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    return inPlayer;
+}
+
 static BOOL TBHEligible(UIScrollView *scrollView, UIView *bar) {
     UIWindow *window = bar.window;
     if (window == nil || scrollView.window != window) return NO;
+    if (TBHInPlayer(scrollView)) return NO;
     // Only the page's main feed, not small horizontal shelves or sheets.
     if (CGRectGetHeight(scrollView.bounds) < CGRectGetHeight(window.bounds) * 0.4) return NO;
     // Shorts (and other one-item-per-page pagers) never hide the bar, even if the tab can't be read.
