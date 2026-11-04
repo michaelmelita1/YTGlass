@@ -216,24 +216,12 @@ static NSArray *ASFiltered(NSArray *sections) {
 
 static IMP OriginalAddSections, OriginalSectionControllers;
 
-// TEMPORARY DIAGNOSTIC: logs sections dropped, and from which page.
-static void ASLogDropped(id controller, NSArray *before, NSArray *after, NSString *how) {
-    if (before.count == after.count) return;
-    UIView *view = [controller isKindOfClass:UIViewController.class] ? ((UIViewController *)controller).viewIfLoaded : nil;
-    YTGDAct(@"HideAIChannels", view, [NSString stringWithFormat:@"dropped %lu of %lu sections in %@ (%@)", (unsigned long)(before.count - after.count),
-                                      (unsigned long)before.count, NSStringFromClass([controller class]), how]);
-}
-
 static void ASAddSections(id self, SEL _cmd, NSArray *sections) {
-    NSArray *kept = ASFiltered(sections);
-    ASLogDropped(self, sections, kept, @"added sections"); // TEMPORARY DIAGNOSTIC
-    ((void (*)(id, SEL, id))OriginalAddSections)(self, _cmd, kept);
+    ((void (*)(id, SEL, id))OriginalAddSections)(self, _cmd, ASFiltered(sections));
 }
 
 static id ASSectionControllers(id self, SEL _cmd, NSArray *sections, id reloadMap) {
-    NSArray *kept = ASFiltered(sections);
-    ASLogDropped(self, sections, kept, @"section controllers"); // TEMPORARY DIAGNOSTIC
-    return ((id (*)(id, SEL, id, id))OriginalSectionControllers)(self, _cmd, kept, reloadMap);
+    return ((id (*)(id, SEL, id, id))OriginalSectionControllers)(self, _cmd, ASFiltered(sections), reloadMap);
 }
 
 __attribute__((constructor)) static void ASInit(void) {

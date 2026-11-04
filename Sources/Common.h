@@ -44,11 +44,5 @@ NSString *TBHSelectedTabTitle(void);
 // TabBarAutoHide.m: every tab's label in YouTube's own order (YouTube's, else an English name; NSNull if unknown).
 NSArray *TBHTabTitles(UIView *bar);
 
-// TEMPORARY DIAGNOSTIC (Diag.m, the stuck player): a line in Documents/YTGlass-diag.log. YTGDAct marks it with the
-// video page view is in, if any, and repeats an identical line at most every 3 seconds.
-void YTGDWrite(NSString *line);
-void YTGDAct(NSString *feature, UIView *view, NSString *what);
-NSString *YTGDWatchOf(UIView *view);
-
 // HideTopBar.m: YES for a top bar (or wrapper) we made invisible. It still holds the page's search button.
 BOOL TBHTopBarHiddenByUs(UIView *view);

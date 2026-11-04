@@ -79,7 +79,6 @@ static void HSPrepare(UICollectionViewLayout *self, SEL _cmd) {
     UICollectionView *list = self.collectionView;
     objc_setAssociatedObject(self, HSSpacersKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     if (list == nil || !HSIsHomeFeed(list)) return;
-    YTGDAct(@"HomeSpacing", list, [NSString stringWithFormat:@"treats %@ as Home's feed", NSStringFromClass(list.class)]); // TEMPORARY DIAGNOSTIC
     static Class spacerClass;
     if (spacerClass == Nil) spacerClass = NSClassFromString(@"ELMCellNode");
     SEL nodeSel = NSSelectorFromString(@"nodeForItemAtIndexPath:");

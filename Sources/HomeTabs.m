@@ -235,7 +235,6 @@ static void HTOldVersionForHome(id request) {
     id context = HTObject(request, @"context");
     NSString *version = HTObject(HTObject(context, @"client"), @"clientVersion");
     if (context == nil || [version isEqualToString:HTOldVersion]) return;
-    YTGDAct(@"HomeTabs", nil, [NSString stringWithFormat:@"old client version on a %@ request", home ? @"Home" : @"Home continuation"]); // TEMPORARY DIAGNOSTIC
     id copy = [context copy];
     HTSet(HTObject(copy, @"client"), @"setClientVersion:", HTOldVersion);
     HTSet(request, @"setContext:", copy);
@@ -263,7 +262,6 @@ static void HTMatchVersionHeader(NSMutableURLRequest *request) {
     if (body.length == 0 || [body rangeOfData:needle options:0 range:NSMakeRange(0, body.length)].location == NSNotFound) return;
     NSString *current = [request valueForHTTPHeaderField:@"X-Youtube-Client-Version"];
     if (current == nil || [current isEqualToString:HTOldVersion]) return;
-    YTGDAct(@"HomeTabs", nil, [NSString stringWithFormat:@"old version header on %@", request.URL.path]); // TEMPORARY DIAGNOSTIC
     ((void (*)(id, SEL, id, id))OriginalSetHeader)(request, @selector(setValue:forHTTPHeaderField:), HTOldVersion, @"X-Youtube-Client-Version");
 }
 
