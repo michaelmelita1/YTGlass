@@ -6,8 +6,10 @@
 #import <objc/message.h>
 #import <os/log.h>
 
-// TEMPORARY: unredacted log line (read with idevicesyslog, grep YTGDIAG).
-#define YTGDLog(...) os_log(OS_LOG_DEFAULT, "%{public}s", [NSString stringWithFormat:__VA_ARGS__].UTF8String)
+// TEMPORARY: diagnostic log line, to the system log and Documents/YTGlass-diag.log (Diag.m).
+void YTGDWrite(NSString *line);
+#define YTGDLog(...) do { NSString *ytgdLine = [NSString stringWithFormat:__VA_ARGS__]; \
+    os_log(OS_LOG_DEFAULT, "%{public}s", ytgdLine.UTF8String); YTGDWrite(ytgdLine); } while (0)
 
 // Replaces -[cls selectorName] with replacement and hands back the previous implementation.
 // The method is added on cls first, so an inherited implementation isn't replaced for every subclass.

@@ -1,73 +1,59 @@
-// TEMPORARY DIAGNOSTIC (0.2.0~debug2..4): logs where YTPlus 6.0 puts its tab bar. Read with idevicesyslog, grep YTGDIAG.
+// TEMPORARY DIAGNOSTIC (0.2.0~debug2..8): YTGDLog lines also go to Documents/YTGlass-diag.log in YouTube's folder
+// (copied off the phone with devicectl). Logs how YouTube 21.43.5 decides on Liquid Glass.
 
 #import "Common.h"
 
-static NSString *YTGDChain(UIView *view) {
-    NSMutableArray *parts = [NSMutableArray array];
-    for (UIView *v = view; v != nil; v = v.superview) {
-        CGRect f = [v convertRect:v.bounds toView:nil];
-        [parts addObject:[NSString stringWithFormat:@"%@ %.0f,%.0f %.0fx%.0f%@%@", NSStringFromClass(v.class), f.origin.x, f.origin.y,
-                          f.size.width, f.size.height, v.hidden ? @" H" : @"", v.alpha < 0.01 ? @" A0" : @""]];
-    }
-    return [parts componentsJoinedByString:@" < "];
+void YTGDWrite(NSString *line) {
+    static NSFileHandle *file;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSString *path = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject
+            stringByAppendingPathComponent:@"YTGlass-diag.log"];
+        [NSFileManager.defaultManager createFileAtPath:path contents:nil attributes:nil]; // fresh each launch
+        file = [NSFileHandle fileHandleForWritingAtPath:path];
+    });
+    NSString *stamped = [NSString stringWithFormat:@"%.3f %@\n", CACurrentMediaTime(), line];
+    @synchronized (file) { [file writeData:[stamped dataUsingEncoding:NSUTF8StringEncoding]]; }
 }
 
-static void YTGDCollect(UIView *view, NSMutableArray *tabBars, NSMutableArray *pivots, Class pivot) {
-    if ([view isKindOfClass:UITabBar.class]) [tabBars addObject:view];
-    if (pivot && [view isKindOfClass:pivot]) [pivots addObject:view];
-    for (UIView *subview in view.subviews) YTGDCollect(subview, tabBars, pivots, pivot);
-}
+static NSString *const YTGDGlassNames[] = {
+    @"isLiquidGlassActive", @"isLiquidGlassAvailable", @"computeIsLiquidGlassAvailable", @"shouldApplyLiquidGlass",
+    @"shouldDisableLiquidGlassEffect", @"liquidGlassEffect", @"liquidGlassEffectStyle", @"enableLiquidGlassEffect",
+    @"mainAppCoreClientIos27EnableLiquidGlass", @"ios27EnableLiquidGlass", @"liquidGlassActive", @"useLiquidGlassStyling",
+};
 
-static void YTGDDump(NSString *reason) {
-    Class pivot = NSClassFromString(@"YTPivotBarView");
-    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
-        if (![scene isKindOfClass:UIWindowScene.class]) continue;
-        for (UIWindow *window in ((UIWindowScene *)scene).windows) {
-            NSMutableArray *tabBars = [NSMutableArray array], *pivots = [NSMutableArray array];
-            YTGDCollect(window, tabBars, pivots, pivot);
-            for (UIView *v in tabBars) YTGDLog(@"YTGDIAG %@ TABBAR %@", reason, YTGDChain(v));
-            for (UIView *v in pivots) {
-                YTGDLog(@"YTGDIAG %@ PIVOT %@", reason, YTGDChain(v));
-                for (UIView *s in v.subviews) YTGDLog(@"YTGDIAG %@ PIVOT-SUB %@ hidden=%d alpha=%.2f", reason, NSStringFromClass(s.class), s.hidden, s.alpha);
-            }
-        }
-    }
-}
-
-static IMP OriginalHide, OriginalShow;
-
-static void YTGDHide(id self, SEL _cmd) {
-    ((void (*)(id, SEL))OriginalHide)(self, _cmd);
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ YTGDDump(@"afterHide"); });
-}
-
-static void YTGDShow(id self, SEL _cmd) {
-    ((void (*)(id, SEL))OriginalShow)(self, _cmd);
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ YTGDDump(@"afterShow"); });
-}
-
-__attribute__((constructor)) static void YTGDInit(void) {
-    // Which classes implement YTPlus's new tab bar methods.
+static void YTGDGlass(void) {
     unsigned int count = 0;
     Class *classes = objc_copyClassList(&count);
-    NSArray *names = @[@"placeTabBar:inPivotBar:", @"setPivotBarHidden:", @"visibleTabBarTopInView:", @"updateStyleOfTabBar:inPivotBar:"];
     for (unsigned int i = 0; i < count; i++) {
-        for (NSString *name in names) {
-            SEL sel = NSSelectorFromString(name);
+        for (int meta = 0; meta < 2; meta++) {
+            Class cls = meta ? object_getClass(classes[i]) : classes[i];
             unsigned int n = 0;
-            Method *methods = class_copyMethodList(classes[i], &n);
-            for (unsigned int j = 0; j < n; j++) if (method_getName(methods[j]) == sel) YTGDLog(@"YTGDIAG METHOD -[%s %@]", class_getName(classes[i]), name);
-            free(methods);
-            methods = class_copyMethodList(object_getClass(classes[i]), &n);
-            for (unsigned int j = 0; j < n; j++) if (method_getName(methods[j]) == sel) YTGDLog(@"YTGDIAG METHOD +[%s %@]", class_getName(classes[i]), name);
+            Method *methods = class_copyMethodList(cls, &n);
+            for (unsigned int j = 0; j < n; j++) {
+                NSString *name = NSStringFromSelector(method_getName(methods[j]));
+                BOOL wanted = NO;
+                for (size_t k = 0; k < sizeof(YTGDGlassNames) / sizeof(*YTGDGlassNames); k++) wanted |= [name isEqualToString:YTGDGlassNames[k]];
+                if (!wanted) continue;
+                char type[32] = { 0 };
+                method_getReturnType(methods[j], type, sizeof(type));
+                NSString *value = @"";
+                if (meta && method_getNumberOfArguments(methods[j]) == 2) { // class method without arguments: ask it
+                    @try {
+                        if (type[0] == 'B' || type[0] == 'c') value = ((BOOL (*)(id, SEL))objc_msgSend)(classes[i], method_getName(methods[j])) ? @" = YES" : @" = NO";
+                        else if (type[0] == 'q' || type[0] == 'Q') value = [NSString stringWithFormat:@" = %ld", ((long (*)(id, SEL))objc_msgSend)(classes[i], method_getName(methods[j]))];
+                        else if (type[0] == '@') value = [NSString stringWithFormat:@" = %@", NSStringFromClass([((id (*)(id, SEL))objc_msgSend)(classes[i], method_getName(methods[j])) class])];
+                    } @catch (__unused NSException *e) { value = @" = (threw)"; }
+                }
+                YTGDLog(@"YTGDIAG glass %c[%s %@] %s%@", meta ? '+' : '-', class_getName(classes[i]), name, type, value);
+            }
             free(methods);
         }
     }
     free(classes);
-    Class appView = NSClassFromString(@"YTAppView");
-    YTGInstallHook(appView, @"hidePivotBar", (IMP)YTGDHide, &OriginalHide);
-    YTGInstallHook(appView, @"showPivotBar", (IMP)YTGDShow, &OriginalShow);
-    for (int i = 1; i <= 3; i++) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(i * 4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ YTGDDump([NSString stringWithFormat:@"t%d", i * 4]); });
-    }
+}
+
+__attribute__((constructor)) static void YTGDInit(void) {
+    YTGDLog(@"YTGDIAG launch YTGlass %s", YTG_VERSION);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ YTGDGlass(); });
 }
