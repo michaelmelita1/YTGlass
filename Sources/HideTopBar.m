@@ -1,7 +1,7 @@
 // HideTopBar
-// Removes YouTube's top navigation bar (YTHeaderView) on the first screen of Home, Subscriptions and History
-// (never search's own screen, whose text box lives in it, or any other tab). Pages scroll behind the status bar under a variable blur, like Apple Music, and
-// Home, Subscriptions and History get a large Apple Music-style title.
+// Removes YouTube's top navigation bar (YTHeaderView) on the first screen of Home, Subscriptions, History
+// and Watch later (never search's own screen, whose text box lives in it, or any other tab). Pages scroll behind the status bar under a variable blur, like Apple Music, and
+// Home, Subscriptions, History and Watch later get a large Apple Music-style title.
 //
 // How: YouTube's header already knows how to collapse itself (it does that when you scroll down on Home):
 // -[YTHeaderView scrollHeaderViewWithOffset:] shrinks it between its min height (the status bar) and max
@@ -30,9 +30,9 @@ static BOOL THBIsRoot(UIViewController *page, UINavigationController *nav) {
     return NO;
 }
 
-// The selected tab's identifier when this page is that tab's first screen, else nil.
+// The page's browse id when it's the first screen of its tab, else nil.
 static NSString *THBTabOfRootPage(UIViewController *page) {
-    NSString *tab = TBHSelectedTabIdentifier();
+    NSString *tab = TBHPageIdentifier(page);
     if (tab == nil) return nil;
     UINavigationController *nav = page.navigationController;
     return nav == nil || THBIsRoot(page, nav) ? tab : nil;
@@ -54,11 +54,11 @@ static UIViewController *THBPage(UIView *view) {
     return nil;
 }
 
-// Only the first screen of Home, Subscriptions and History, never search's own screen or another tab. Pages opened on top (a channel, a playlist, ...) keep YouTube's bar, so they keep their back
-// button and their own header. The tab check is decided when the page first appears (the You page is created
-// when its tab is opened); whether something is open on top is checked every time, since a tab's pages can
-// share one bar. Search results reuse the page's bar, which is shown while it holds the search box
-// (THBShowsSearchBox).
+// Only the first screen of Home, Subscriptions, History and Watch later, never search's own screen or another tab. Pages opened on top (a channel, a playlist, ...) keep YouTube's bar, so they keep their back
+// button and their own header. Which page it is comes from the page itself (its browse id, TBHPageIdentifier), so
+// it doesn't depend on the tab bar or the tabs' order; decided once per bar. Whether something is open on top is
+// checked every time, since a tab's pages can share one bar. Search results reuse the page's bar, which is shown
+// while it holds the search box (THBShowsSearchBox).
 static UIView *THBCombo(UIView *view);
 
 static BOOL THBAllowed(UIView *header) {
@@ -77,19 +77,9 @@ static BOOL THBAllowed(UIView *header) {
     }
     if (allowed && nav && !shared) allowed = THBIsRoot(page, nav); // the page's own bar: only on the tab's first screen
     if (allowed) {
-        NSString *tab = TBHSelectedTabIdentifier();
-        if (tab == nil) { // not readable yet (Home at launch): asked again shortly, since Home's bar may not lay out again
-            static int tries;
-            if (tries++ > 25) return NO; // about 5 seconds
-            __weak UIView *weakHeader = header;
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                UIView *again = weakHeader;
-                [again setNeedsLayout];
-                [THBCombo(again) setNeedsLayout];
-            });
-            return NO;
-        }
-        allowed = [@[@"FEwhat_to_watch", @"FEsubscriptions", @"FEhistory"] containsObject:tab];
+        NSString *tab = TBHPageIdentifier(page);
+        if (tab == nil) return NO; // the page isn't set up yet: decided on a later layout
+        allowed = [@[@"FEwhat_to_watch", @"FEsubscriptions", @"FEhistory", @"VLWL"] containsObject:tab];
     }
     objc_setAssociatedObject(header, THBDecisionKey, @(allowed), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return allowed;
@@ -446,7 +436,7 @@ static void THBFixContentsFrame(UIView *pageHeader) {
 
 #pragma mark - The page's list and its title
 //
-// The first row sits right below the clock, or below the large title on Home, Subscriptions and History
+// The first row sits right below the clock, or below the large title on Home, Subscriptions, History and Watch later
 // (Apple Music style: a large bold title that scrolls with the list, under the status bar blur). Checked
 // on every layout, in screen coordinates, and only changed when it's off.
 
@@ -527,12 +517,13 @@ static NSString *THBTitleText(UIView *combo) {
     if (text) return text.length ? text : nil;
     if (combo.window == nil) return nil;
     UIViewController *page = THBPage(combo);
-    if (page == nil || TBHSelectedTabIdentifier() == nil) return nil; // not readable yet: looked up on a later pass
+    if (page == nil || TBHPageIdentifier(page) == nil) return nil; // not set up yet: looked up on a later pass
     NSString *tab = THBTabOfRootPage(page);
     // The tab's own label, so the title follows the app's language; English if YouTube doesn't give one.
-    NSDictionary *titles = @{ @"FEwhat_to_watch": @"Home", @"FEsubscriptions": @"Subscriptions", @"FEhistory": @"History" };
+    NSDictionary *titles = @{ @"FEwhat_to_watch": @"Home", @"FEsubscriptions": @"Subscriptions", @"FEhistory": @"History",
+                              @"VLWL": @"Watch later" };
     text = tab ? titles[tab] : nil;
-    if (text) text = TBHSelectedTabTitle() ?: text;
+    if (text && [TBHSelectedTabIdentifier() isEqualToString:tab]) text = TBHSelectedTabTitle() ?: text;
     if (text) objc_setAssociatedObject(combo, THBTitleTabKey, tab, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     objc_setAssociatedObject(combo, THBTitleTextKey, text ?: @"", OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return text;

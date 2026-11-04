@@ -11,7 +11,7 @@ Liquid Glass tweaks for YouTube builds with **YTPlus 6.0** and its Liquid Glass 
   It matches the capsule's height, hides and shows with the bar, and opens YouTube's normal search.
 - **No top bar**: YouTube's top navigation bar is removed on every page except search and the You tab.
   Pages scroll behind the status bar under a variable blur with a light tint, like Apple Music.
-- **Large titles**: Home, Subscriptions and History get an Apple Music-style title that scrolls with the page.
+- **Large titles**: Home, Subscriptions, History and Watch later get an Apple Music-style title that scrolls with the page.
   Subscriptions' avatars/chips and History's title/search box/chips are removed.
 - **Liquid Glass player controls**: YouTube's own Liquid Glass (clear style) behind play/pause and previous/next, and a 40pt glass circle behind each top-row player button (captions, settings, cast, and buttons other tweaks add there).
   YTPlus's second row of player buttons moves up beside settings, the group sharing one glass capsule; at the
@@ -19,7 +19,8 @@ Liquid Glass tweaks for YouTube builds with **YTPlus 6.0** and its Liquid Glass 
 - **No slide-up animation** when switching tabs: the new tab's page appears straight away.
 - **Even spacing on Home**: Home's blank spacer rows (YouTube's own, and the ones YTPlus's ad blocking leaves
   behind) are collapsed, so its videos are spaced like Subscriptions'.
-- **Hold Home for settings**: holding the Home tab opens YouTube's settings (instead of YTPlus's tab bar menu).
+- **Liquid Glass Tab Bar**: iOS 26's own tab bar in place of YouTube's and YTPlus's, with YouTube's icons and Search as
+  iOS's glass circle beside it. Holding Home opens YouTube's settings, and the mini player moves with the bar.
 - **DeArrow** (off by default): replaces video titles and/or thumbnails in feeds with [DeArrow](https://dearrow.ajay.app)'s
   community ones.
 - **Hide AI channels** (off by default): removes channels on the [AiSList](https://aisloplist.com) blocklist and/or
@@ -28,7 +29,7 @@ Liquid Glass tweaks for YouTube builds with **YTPlus 6.0** and its Liquid Glass 
   item at the end of YTPlus's tab bar)
 - **Hide Navigation bar** (the top bar, with the status bar blur and large titles)
 - **Liquid Glass player**
-- **Hold Home for settings**
+- **Liquid Glass Tab Bar**
 - **Slide Up animation** (on: the animation is disabled)
 - **DeArrow titles**, **DeArrow thumbnails**, **Hide AI channels**, **Hide suspected AI channels** (off by default; they go online)
 
@@ -49,8 +50,10 @@ Hiding the tab bar on scroll and Home's spacing are always on.
 - `Sources/TabAnimation.m`: turns off YouTube's `+[YTModernTransitions isTabSlideUpAnimationEnabled]` flag.
 - `Sources/HomeSpacing.m`: after Home's `YTTopAlignGridCollectionViewLayout` lays out, its 8pt `ELMCellNode` spacer
   rows get no height and the rows below move up (the rows' own sizes are left alone).
-- `Sources/HomeHold.m`: holding Home on YTPlus's tab bar: the `UIContextMenuInteraction` delegate gets no menu for a
-  press on the Home tab, and YouTube's `+[YTICommand applicationSettingsNavigationEndpoint]` command opens settings.
+- `Sources/SystemTabBar.m`: a `UITabBarController` of YTGlass's over `YTAppView` (empty, see-through pages; only the
+  bar takes touches), with YTPlus's tab items and iOS 27's `prominentTabIdentifier` for the search circle. Choosing a
+  tab chooses it on YTPlus's bar; it hides with `YTPivotBarView`. Holding Home sends YouTube's
+  `+[YTICommand applicationSettingsNavigationEndpoint]`.
 - `Sources/DeArrow.m`: ported from YTKACE v1.1.3; reads the video ID from each feed thumbnail's URL
   (`ELMImageNode`), asks DeArrow's branding API, sets the DeArrow thumbnail on the node and the title on the card's
   title `ELMTextNode`. Results are cached; requests are limited to 4 at once and 90 a minute.
@@ -63,6 +66,7 @@ Pure Objective-C runtime swizzling, no CydiaSubstrate/ElleKit dependency. See `L
 
 ## Changelog
 
+- **0.2.1**: for YTPlus 6.0 and YouTube 21.43.5; new Liquid Glass Tab Bar switch: iOS's own tab bar with YouTube's icons, every YTPlus tab and Search as a glass circle beside it, with Hold Home for settings and the mini player fix (the old Hold Home switch is replaced); Hide Home tabs (the Subscriptions, Music and Live tabs at the top of Home); large title on Watch later; the Liquid Glass player works again on 21.43.5; YTPlus's tabs get their labels back; Home's title and spacing found from the page itself.
 - **0.1.2**: holding the Home tab opens YouTube's settings instead of YTPlus's tab bar menu (Hold Home for settings switch); the Settings item in that menu is removed.
 - **0.1.1**: built on 0.0.6 for Home's smooth scrolling; the mini player moves with the tab bar on every page, with the bar's own animation; the tab bar stays hidden when a list bounces at its end; DeArrow and AiSList back, lighter while scrolling; Slide Up animation renamed; YTPlus Fixes removed (YTPlus fixed the bug); smaller optimisations.
 - **0.0.6**: YTPlus's player buttons (mute, sleep timer, menu) move into the top row and share one glass capsule with settings; the quality label and full screen button share one pill at the bottom; faster tab bar handling (Shorts checks skipped when there's no Shorts tab).

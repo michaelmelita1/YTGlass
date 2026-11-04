@@ -12,18 +12,15 @@ static const void *HSHomeKey = &HSHomeKey;     // feed -> @YES/@NO: Home's feed 
 static const void *HSSpacersKey = &HSSpacersKey; // layout -> HSSpacers
 static const void *HSScanKey = &HSScanKey;       // layout -> HSScan
 
+// Home's feed is the list on the page whose browse id is Home's (not whichever tab is selected, so the player's list
+// and pages opened on top of Home are left alone).
 static BOOL HSIsHomeFeed(UIView *list) {
-    static __weak UIView *firstFeed; // the first feed laid out: Home's, the tab the app opens on
     NSNumber *decided = list ? objc_getAssociatedObject(list, HSHomeKey) : nil;
     if (decided) return decided.boolValue;
-    NSString *tab = TBHSelectedTabIdentifier();
-    // Home's feed can be laid out before the tab bar can be read: then only the first feed counts as Home.
-    if (tab == nil) {
-        if (firstFeed == nil) firstFeed = list;
-        return list == firstFeed;
-    }
-    BOOL home = [tab isEqualToString:@"FEwhat_to_watch"];
-    if (list.window) objc_setAssociatedObject(list, HSHomeKey, @(home), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    NSString *page = TBHPageIdentifier(list);
+    if (page == nil) return NO; // not on a page yet: asked again at the next layout
+    BOOL home = [page isEqualToString:@"FEwhat_to_watch"];
+    objc_setAssociatedObject(list, HSHomeKey, @(home), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return home;
 }
 

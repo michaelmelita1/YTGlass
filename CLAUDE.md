@@ -85,10 +85,12 @@ switch at launch, so changes apply after a restart (the page's bottom row says s
 
 ## Planned
 
-- Liquid Glass tab bar: parked again after 0.1.2. Attempts on branches: `wip/native-tab-bar` (iOS's own tab bar, a
-  UITabBarController with UITabs inside YouTube's bar; hold Home didn't work on it and Search: Separate sat inside
-  the bar) and `wip/glass-tab-bar` (hand-built with YTKACE's lens; felt laggy, icons jumped). Michael tried YTKACE's own
-  bar and didn't like it. He wants native iOS behaviour, not imitations. Independent of YTPlus: never touch it.
+- Liquid Glass Tab Bar: in progress on `wip/system-tab-bar` (`SystemTabBar.m`, Vitrine's design: a UITabBarController
+  over `YTAppView`, see-through pages, only the bar takes touches). Its switch also covers Hold Home and the mini player
+  fix. The separate search circle needs iOS 27's `prominentTabIdentifier`; more than five tabs needs the private
+  `_setMaximumNumberOfItems:`. Tabs and icons come from YTPlus's UITabBar items. Earlier attempts: `wip/native-tab-bar`
+  (inside YouTube's bar: Search never separated) and `wip/glass-tab-bar` (hand-built; laggy). Michael wants native iOS
+  behaviour, not imitations. Independent of YTPlus: never touch it.
 - 0.1.1 is 0.0.6 plus the mini player fix (it follows the tab bar, TabBarAutoHide.m), because 0.1.0 made Home's
   scrolling slower; 0.1.0's DeArrow, AiSList, Off/Integrated tab bar unclipping and the Slide Up animation rename
   are not in it.
@@ -97,8 +99,10 @@ switch at launch, so changes apply after a restart (the page's bottom row says s
 
 - Home's tab button (YTPivotBarItemView) has no renderer, so no identifier or title: it's recognised as the first
   button (`TBHItemIdentifier`). YouTube's tabs have no labels at all; `YTPlusTabLabels.m` names YTPlus's tabs in English.
+- Which page a header or list is on comes from the page itself: `TBHPageIdentifier` reads the browse id
+  (`navigationEndpoint.browseEndpoint.browseId`) of `YTHeaderContentComboViewController` / `YTBrowseViewController`
+  (FEwhat_to_watch, FEsubscriptions, FEhistory, VLWL for Watch later). HideTopBar and HomeSpacing use it.
 - YTPlus places its UITabBar without `-setFrame:`; the separate search button narrows it on YTPivotBarView layout.
-- YTPlus's tabs have no titles, so Hold Home goes by the first tab's position.
 - `+[YTFrostedGlassView liquidGlassEffect]` just returns nil: PlayerGlass puts a UIGlassEffect (capsule) on each
   YTFrostedGlassView's `blurEffectView` itself and hides its `overlayView`.
 - The player's quality label is empty until YouQuality fills it in (YouQuality/YTVideoOverlay, not ours).

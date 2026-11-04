@@ -10,7 +10,6 @@ static NSString *const YTGSearchModeKey = @"YTGlass_SearchMode";
 NSString *const YTGTopBarKey = @"YTGlass_HideTopBar";
 NSString *const YTGPlayerKey = @"YTGlass_PlayerGlass";
 NSString *const YTGSlideUpKey = @"YTGlass_NoSlideUpAnimation";
-NSString *const YTGHomeHoldKey = @"YTGlass_HomeHold";
 NSString *const YTGHomeTabsKey = @"YTGlass_HideHomeTabs";
 NSString *const YTGDeArrowTitlesKey = @"YTGlass_DeArrowTitles";
 NSString *const YTGDeArrowThumbnailsKey = @"YTGlass_DeArrowThumbnails";
@@ -155,8 +154,9 @@ static void YTGUpdateSection(id self, SEL _cmd, NSUInteger category, id entry) {
                   @"Removes the navigation bar and styles it like a native app.", YTGTopBarKey, NO) ?: NSNull.null,
         YTGSwitch(@"Liquid Glass player",
                   @"Liquid Glass video player controls.", YTGPlayerKey, NO) ?: NSNull.null,
-        YTGSwitch(@"Hold Home for settings",
-                  @"Hold the Home tab to open YouTube's settings instead of YTPlus's menu.", YTGHomeHoldKey, NO) ?: NSNull.null,
+        YTGSwitch(@"Liquid Glass Tab Bar",
+                  @"iOS's own tab bar with Search beside it. Hold Home to open settings; the mini player stays above the bar.",
+                  YTGSystemTabBarKey, NO) ?: NSNull.null,
         YTGSwitch(@"Hide Home tabs",
                   @"Removes the Subscriptions, Music and Live tabs at the top of Home.", YTGHomeTabsKey, NO) ?: NSNull.null,
         YTGSwitch(@"Slide Up animation",

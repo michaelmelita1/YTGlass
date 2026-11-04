@@ -437,6 +437,7 @@ __attribute__((constructor)) static void TBHInit(void) {
         TBHHookMethod(NSClassFromString(@"YTPivotBarView"), @"layoutSubviews", (IMP)TBHBarLayout, &OriginalBarLayout);
         TBHHookMethod(NSClassFromString(@"YTPivotBarItemView"), @"setSelected:", (IMP)TBHItemSetSelected, &OriginalItemSetSelected);
         TBHHookMethod(UIScrollView.class, @"setContentOffset:", (IMP)TBHScrollSetContentOffset, &OriginalScrollSetContentOffset);
+        if (!YTGSystemTabBarOn()) return; // the mini player fix comes with the Liquid Glass Tab Bar
         Class appView = NSClassFromString(@"YTAppView");
         TBHHookMethod(appView, @"hidePivotBar", (IMP)TBHHidePivotBar, &OriginalHidePivotBar);
         TBHHookMethod(appView, @"showPivotBar", (IMP)TBHShowPivotBar, &OriginalShowPivotBar);
@@ -466,6 +467,22 @@ UIView *TBHFindBar(void) {
     return bar;
 }
 
+NSString *TBHPageIdentifier(UIResponder *from) {
+    static SEL endpointSel;
+    if (endpointSel == NULL) endpointSel = NSSelectorFromString(@"navigationEndpoint");
+    UIViewController *page = nil;
+    for (UIResponder *r = from; r != nil && page == nil; r = r.nextResponder) {
+        if ([r isKindOfClass:UIViewController.class]) page = (UIViewController *)r;
+    }
+    for (UIViewController *v = page; v != nil; v = v.parentViewController) {
+        if (![v respondsToSelector:endpointSel]) continue;
+        id endpoint = ((id (*)(id, SEL))objc_msgSend)(v, endpointSel), browseId = nil;
+        @try { browseId = [endpoint valueForKeyPath:@"browseEndpoint.browseId"]; } @catch (__unused NSException *e) {}
+        if ([browseId isKindOfClass:NSString.class] && [browseId length]) return browseId;
+    }
+    return nil;
+}
+
 NSString *TBHSelectedTabIdentifier(void) {
     UIView *bar = TBHFindBar();
     UIView *selected = bar ? TBHSelectedItem(bar) : nil;
@@ -486,12 +503,26 @@ static NSString *TBHItemTitle(UIView *item) {
     return label.length ? label : nil;
 }
 
+NSArray<UIView *> *TBHTabItems(UIView *bar) {
+    NSMutableArray<UIView *> *items = [NSMutableArray array];
+    if (bar) TBHCollectItems(bar, items);
+    return items;
+}
+
+NSString *TBHTabIdentifier(UIView *item) {
+    return TBHItemIdentifier(item);
+}
+
+BOOL TBHTabSelected(UIView *item) {
+    return TBHItemSelected(item);
+}
+
 NSArray *TBHTabTitles(UIView *bar) {
     NSMutableArray<UIView *> *items = [NSMutableArray array];
     if (bar) TBHCollectItems(bar, items);
     NSMutableArray *titles = [NSMutableArray arrayWithCapacity:items.count];
     // YouTube 21.43.5's tabs have no labels of their own: the known tabs are named in English.
-    NSDictionary *known = @{ @"FEwhat_to_watch": @"Home", @"FEsubscriptions": @"Subscriptions", @"FEhistory": @"History",
+    NSDictionary *known = @{ @"FEwhat_to_watch": @"Home", @"FEsubscriptions": @"Subscriptions", @"FEhistory": @"History", @"VLWL": @"Watch later",
                              @"FElibrary": @"You", @"FEyou": @"You", @"FEshorts": @"Shorts" };
     for (UIView *item in items) {
         NSString *identifier = TBHItemIdentifier(item);

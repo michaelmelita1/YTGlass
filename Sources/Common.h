@@ -23,7 +23,6 @@ static inline BOOL TBHHookMethod(Class cls, NSString *selectorName, IMP replacem
 extern NSString *const YTGTopBarKey; // no top bar, status bar blur, large titles (HideTopBar.m)
 extern NSString *const YTGPlayerKey; // Liquid Glass player controls (PlayerGlass.m)
 extern NSString *const YTGSlideUpKey; // no slide-up animation when switching tabs (TabAnimation.m)
-extern NSString *const YTGHomeHoldKey;          // holding Home opens settings (HomeHold.m)
 extern NSString *const YTGHomeTabsKey;          // no Subscriptions/Music/Live tabs at the top of Home (HomeTabs.m)
 extern NSString *const YTGDeArrowTitlesKey;     // DeArrow community titles (DeArrow.m)
 extern NSString *const YTGDeArrowThumbnailsKey; // DeArrow thumbnails (DeArrow.m)
@@ -39,10 +38,25 @@ YTGSearchStyle YTGSearchMode(void);
 UIView *TBHFindBar(void);
 // TabBarAutoHide.m: the selected tab's identifier (e.g. FEwhat_to_watch, FElibrary), or nil.
 NSString *TBHSelectedTabIdentifier(void);
+// TabBarAutoHide.m: the browse id of the page a view or controller belongs to (e.g. FEwhat_to_watch for Home, VLWL for
+// Watch later), from the page's navigation endpoint; nil outside a browse page (the player, search, settings).
+NSString *TBHPageIdentifier(UIResponder *from);
 // TabBarAutoHide.m: the selected tab's label as YouTube shows it (in the app's language), or nil.
 NSString *TBHSelectedTabTitle(void);
 // TabBarAutoHide.m: every tab's label in YouTube's own order (YouTube's, else an English name; NSNull if unknown).
 NSArray *TBHTabTitles(UIView *bar);
+
+// TabBarAutoHide.m: YouTube's tab buttons (YTPivotBarItemView) in YouTube's order, hidden ones included; a button's tab
+// identifier (nil if unknown) and whether it's selected.
+NSArray<UIView *> *TBHTabItems(UIView *bar);
+NSString *TBHTabIdentifier(UIView *item);
+BOOL TBHTabSelected(UIView *item);
+
+// SearchButton.m: opens YouTube's search (taps the top bar's search button).
+void YTGOpenSearch(UIView *from);
+// SystemTabBar.m: iOS's own tab bar in place of YouTube's (and YTPlus's), with Hold Home and the mini player fix.
+extern NSString *const YTGSystemTabBarKey;
+BOOL YTGSystemTabBarOn(void);
 
 // HideTopBar.m: YES for a top bar (or wrapper) we made invisible. It still holds the page's search button.
 BOOL TBHTopBarHiddenByUs(UIView *view);

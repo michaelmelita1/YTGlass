@@ -59,6 +59,10 @@ static void TBSOpenSearch(UIView *from) {
     }
 }
 
+void YTGOpenSearch(UIView *from) {
+    TBSOpenSearch(from);
+}
+
 @interface TBSSearchTarget : NSObject
 @end
 
@@ -420,6 +424,7 @@ __attribute__((constructor)) static void TBSInit(void) {
         char type[8] = { 0 };
         if (optOut) method_getReturnType(optOut, type, sizeof(type));
         if (type[0] == 'B' || type[0] == 'c') TBHHookMethod(results, @"optOutOfFrostedPivotBar", (IMP)TBSSearchOptOut, NULL);
+        if (YTGSystemTabBarOn()) return; // the system tab bar has its own search tab (SystemTabBar.m)
         NSInteger mode = YTGSearchMode();
         Class bar = NSClassFromString(@"YTPivotBarView");
         if (bar == Nil || mode == YTGSearchOff) return;
