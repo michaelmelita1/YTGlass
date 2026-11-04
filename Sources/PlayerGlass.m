@@ -391,20 +391,6 @@ static void PGBarContainerLayout(UIView *self, SEL _cmd) {
         objc_setAssociatedObject(fullscreen, PGPillKey, pill, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     UIView *icon = fullscreenButton ?: fullscreen;
-    { // TEMPORARY: the quality button and what it draws (logged when it changes)
-        static NSString *last;
-        NSMutableString *inner = [NSMutableString string];
-        for (UIView *v in quality.subviews) {
-            [inner appendFormat:@" [%@ %@ hidden=%d alpha=%.2f", NSStringFromClass(v.class), NSStringFromCGRect(v.frame), v.hidden, v.alpha];
-            if ([v isKindOfClass:UILabel.class]) [inner appendFormat:@" text='%@' color=%@", ((UILabel *)v).text, ((UILabel *)v).textColor];
-            [inner appendString:@"]"];
-        }
-        UIButton *button = [quality isKindOfClass:UIButton.class] ? (UIButton *)quality : nil;
-        NSString *line = [NSString stringWithFormat:@"YTGDIAG quality %@ %@ hidden=%d alpha=%.2f title='%@' holder=%@ shift=%.1f pill=%@ subviews:%@",
-            NSStringFromClass(quality.class), NSStringFromCGRect([quality convertRect:quality.bounds toView:self]), quality.hidden, quality.alpha,
-            [button titleForState:UIControlStateNormal], NSStringFromClass(holder.class), PGShiftOf(holder), NSStringFromCGRect([pill convertRect:pill.bounds toView:self]), inner];
-        if (![line isEqualToString:last]) { last = line; YTGDLog(@"%@", line); }
-    }
     // The label moved towards the icon (within the bar, so it stays tappable).
     CGRect iconFrame = PGDrawnFrame(icon, self), text = PGDrawnFrame(quality, self);
     CGFloat slot = MAX(PGLabelSlot, CGRectGetWidth(text));

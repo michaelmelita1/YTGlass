@@ -72,21 +72,6 @@ static NSString *TBHItemIdentifier(UIView *item) {
     return items.firstObject == item ? @"FEwhat_to_watch" : nil;
 }
 
-// TEMPORARY: every tab button as YTGlass reads it.
-void TBHLogItems(void) {
-    UIView *bar = TBHFindBar();
-    NSMutableArray<UIView *> *items = [NSMutableArray array];
-    if (bar) TBHCollectItems(bar, items);
-    for (UIView *item in items) {
-        id renderer = nil, pivot = nil, browse = nil;
-        @try { renderer = [item valueForKey:@"renderer"]; } @catch (__unused NSException *e) {}
-        @try { pivot = [renderer valueForKey:@"pivotIdentifier"]; } @catch (__unused NSException *e) {}
-        @try { browse = [renderer valueForKeyPath:@"navigationEndpoint.browseEndpoint.browseId"]; } @catch (__unused NSException *e) {}
-        YTGDLog(@"YTGDIAG item %@ selected=%d assoc=%@ traits=%d pivot='%@' browse='%@' renderer=%@", NSStringFromClass(item.class), TBHItemSelected(item),
-            objc_getAssociatedObject(item, TBHSelectedKey), (item.accessibilityTraits & UIAccessibilityTraitSelected) != 0, pivot, browse, NSStringFromClass([renderer class]));
-    }
-}
-
 // Whether the tab bar has a Shorts tab (YTPlus can remove it). Decided once every tab's identifier can be read;
 // selecting a Shorts tab later turns it back on (TBHItemSetSelected).
 typedef NS_ENUM(NSInteger, TBHShortsTabState) { TBHShortsTabUnknown, TBHShortsTabNone, TBHShortsTabPresent };
@@ -521,13 +506,3 @@ NSString *TBHSelectedTabTitle(void) {
     return selected ? TBHItemTitle(selected) : nil;
 }
 
-NSString *TBHTabTitle(NSString *identifier) {
-    UIView *bar = TBHFindBar();
-    if (bar == nil) return nil;
-    NSMutableArray<UIView *> *items = [NSMutableArray array];
-    TBHCollectItems(bar, items);
-    for (UIView *item in items) {
-        if ([TBHItemIdentifier(item) isEqualToString:identifier]) return TBHItemTitle(item);
-    }
-    return nil;
-}

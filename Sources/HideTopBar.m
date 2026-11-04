@@ -80,8 +80,7 @@ static BOOL THBAllowed(UIView *header) {
         NSString *tab = TBHSelectedTabIdentifier();
         if (tab == nil) { // not readable yet (Home at launch): asked again shortly, since Home's bar may not lay out again
             static int tries;
-            if (tries++ % 10 == 0) TBHLogItems(); // TEMPORARY
-            if (tries > 25) return NO; // about 5 seconds
+            if (tries++ > 25) return NO; // about 5 seconds
             __weak UIView *weakHeader = header;
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 UIView *again = weakHeader;
@@ -93,12 +92,6 @@ static BOOL THBAllowed(UIView *header) {
         allowed = [@[@"FEwhat_to_watch", @"FEsubscriptions", @"FEhistory"] containsObject:tab];
     }
     objc_setAssociatedObject(header, THBDecisionKey, @(allowed), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    { // TEMPORARY: every decision, with the page's view controllers
-        NSMutableArray *chain = [NSMutableArray array];
-        for (UIViewController *v = page; v != nil; v = v.parentViewController) [chain addObject:NSStringFromClass(v.class)];
-        YTGDLog(@"YTGDIAG decide tab=%@ allowed=%d nav=%@ shared=%d count=%lu chain=%@", TBHSelectedTabIdentifier(), allowed,
-            NSStringFromClass(nav.class), shared, (unsigned long)nav.viewControllers.count, [chain componentsJoinedByString:@" < "]);
-    }
     return allowed;
 }
 
@@ -536,7 +529,6 @@ static NSString *THBTitleText(UIView *combo) {
     UIViewController *page = THBPage(combo);
     if (page == nil || TBHSelectedTabIdentifier() == nil) return nil; // not readable yet: looked up on a later pass
     NSString *tab = THBTabOfRootPage(page);
-    YTGDLog(@"YTGDIAG title tab=%@ label=%@", tab, TBHSelectedTabTitle()); // TEMPORARY
     // The tab's own label, so the title follows the app's language; English if YouTube doesn't give one.
     NSDictionary *titles = @{ @"FEwhat_to_watch": @"Home", @"FEsubscriptions": @"Subscriptions", @"FEhistory": @"History" };
     text = tab ? titles[tab] : nil;
@@ -589,24 +581,6 @@ static void THBArrangePage(UIView *combo) {
     if (window == nil || ![child isKindOfClass:UIView.class]) return;
     UIScrollView *list = THBMainList(child, window);
     UILabel *label = objc_getAssociatedObject(combo, THBTitleKey);
-    { // TEMPORARY: what the page looks like when it gets no title (logged when it changes)
-        static NSString *last;
-        NSString *tab = TBHSelectedTabIdentifier();
-        NSMutableString *tree = [NSMutableString string];
-        NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:child];
-        for (NSUInteger i = 0; i < queue.count && i < 400; i++) {
-            UIView *v = queue[i];
-            if ([v isKindOfClass:UIScrollView.class]) {
-                CGRect f = [v convertRect:v.bounds toView:nil];
-                [tree appendFormat:@" | %@ %.0f,%.0f %.0fx%.0f paging=%d hidden=%d alpha=%.2f", NSStringFromClass(v.class), f.origin.x, f.origin.y,
-                    f.size.width, f.size.height, ((UIScrollView *)v).pagingEnabled, v.hidden, v.alpha];
-            }
-            [queue addObjectsFromArray:v.subviews];
-        }
-        NSString *line = [NSString stringWithFormat:@"YTGDIAG page tab=%@ list=%@ title=%@ views=%lu%@", tab, list ? NSStringFromClass(list.class) : @"nil",
-            list ? THBTitleText(combo) : @"-", (unsigned long)queue.count, tree];
-        if (![line isEqualToString:last]) { last = line; YTGDLog(@"%@", line); }
-    }
     if (list == nil) { label.hidden = YES; return; }
     NSString *title = THBTitleText(combo);
     CGFloat status = window.safeAreaInsets.top;
@@ -701,14 +675,6 @@ static void THBPageHeaderLayout(UIView *self, SEL _cmd) {
 // The page: hide YouTube's frosted background behind the bar, place the blur, and arrange the list.
 static void THBComboLayout(UIView *self, SEL _cmd) {
     if (OriginalComboLayout) ((void (*)(id, SEL))OriginalComboLayout)(self, _cmd);
-    { // TEMPORARY: the page's top bar as YTGlass sees it (logged when it changes)
-        static NSString *last;
-        UIView *headerHolder = THBCall(self, @"headerView");
-        UIView *found = [headerHolder isKindOfClass:UIView.class] ? THBFindHeader(headerHolder, 3) : nil;
-        NSString *line = [NSString stringWithFormat:@"YTGDIAG combo tab=%@ holder=%@ header=%@ decided=%@ flagged=%d", TBHSelectedTabIdentifier(),
-            NSStringFromClass(headerHolder.class), NSStringFromClass(found.class), objc_getAssociatedObject(found, THBDecisionKey), THBFlagged(found)];
-        if (![line isEqualToString:last]) { last = line; YTGDLog(@"%@", line); }
-    }
     Ivar blurIvar = class_getInstanceVariable(object_getClass(self), "_blurContainerView");
     UIView *frosting = blurIvar ? object_getIvar(self, blurIvar) : nil;
     if (THBHiddenHeader(self) == nil) {

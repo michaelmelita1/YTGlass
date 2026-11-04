@@ -19,13 +19,6 @@ static void YTLBarLayout(UIView *self, SEL _cmd) {
     for (UITabBarItem *tab in tabs) untitled |= tab.title.length == 0;
     if (!untitled) return;
     NSArray *titles = TBHTabTitles(self);
-    { // TEMPORARY: both lists, to check they line up
-        static NSString *last;
-        NSMutableArray *ours = [NSMutableArray array];
-        for (UITabBarItem *tab in tabs) [ours addObject:[NSString stringWithFormat:@"'%@' tag=%ld ax='%@'", tab.title, (long)tab.tag, tab.accessibilityLabel]];
-        NSString *line = [NSString stringWithFormat:@"YTGDIAG labels youtube=%@ ytplus=%@", [titles componentsJoinedByString:@" | "], [ours componentsJoinedByString:@" | "]];
-        if (![line isEqualToString:last]) { last = line; YTGDLog(@"%@", line); }
-    }
     for (NSUInteger i = 0; i < tabs.count && i < titles.count; i++) {
         if (tabs[i].title.length == 0 && [titles[i] isKindOfClass:NSString.class]) tabs[i].title = titles[i];
     }

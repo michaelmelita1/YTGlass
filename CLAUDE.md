@@ -89,3 +89,15 @@ switch at launch, so changes apply after a restart (the page's bottom row says s
 - 0.1.1 is 0.0.6 plus the mini player fix (it follows the tab bar, TabBarAutoHide.m), because 0.1.0 made Home's
   scrolling slower; 0.1.0's DeArrow, AiSList, Off/Integrated tab bar unclipping and the Slide Up animation rename
   are not in it.
+
+## YouTube 21.43.5 / YTPlus 6.0 differences
+
+- Home's tab button (YTPivotBarItemView) has no renderer, so no identifier or title: it's recognised as the first
+  button (`TBHItemIdentifier`). YouTube's tabs have no labels at all; `YTPlusTabLabels.m` names YTPlus's tabs in English.
+- YTPlus places its UITabBar without `-setFrame:`; the separate search button narrows it on YTPivotBarView layout.
+- YTPlus's tabs have no titles, so Hold Home goes by the first tab's position.
+- `+[YTFrostedGlassView liquidGlassEffect]` just returns nil: PlayerGlass puts a UIGlassEffect (capsule) on each
+  YTFrostedGlassView's `blurEffectView` itself and hides its `overlayView`.
+- The player's quality label is empty until YouQuality fills it in (YouQuality/YTVideoOverlay, not ours).
+- Diagnostics: logs written to a file in YouTube's Documents and copied off with
+  `xcrun devicectl device copy from --domain-type appDataContainer` are more reliable than idevicesyslog.
