@@ -1,9 +1,10 @@
 // Liquid Glass video player controls (formerly the separate PlayerGlass dylib).
 //
-// YouTube already ships Liquid Glass behind its play/pause and previous/next buttons (and its other player
-// glass views): +[YTFrostedGlassView liquidGlassEffect] returns a UIGlassEffect on iOS 26 when the
-// enableLiquidGlassEffect flag is on, with liquidGlassEffectStyle 1 = regular and 2 = clear. We turn that on,
-// and give the top-row buttons (captions, settings, cast, ...) the same glass circles.
+// YouTube puts a YTFrostedGlassView behind its play/pause and previous/next buttons (and its other player controls).
+// Up to 21.39 +[YTFrostedGlassView liquidGlassEffect] gave it a UIGlassEffect when the enableLiquidGlassEffect flag was
+// on (liquidGlassEffectStyle 1 = regular, 2 = clear); we turn that on. In 21.43.5 that method just returns nil, so the
+// frosted blur view gets iOS's own glass directly instead. The top-row buttons (captions, settings, cast, ...) get the
+// same glass circles.
 //
 // YTPlus puts a second row of buttons (mute, sleep timer, its menu) under the top row's quality label and settings
 // button, in a UIStackView of YTQTMButtons labelled YTL...; that row is moved up beside them (at its own spacing), and
@@ -32,6 +33,33 @@ static void PGHookTyped(Class cls, NSString *selectorName, const char *returnTyp
 
 static BOOL PGEnableLiquidGlass(__unused id self, __unused SEL _cmd) { return YES; }
 static NSInteger PGLiquidGlassStyle(__unused id self, __unused SEL _cmd) { return PGGlassStyle; }
+
+// The glass YouTube 21.43.5 no longer gives: the frosted view's blur becomes iOS's glass, shaped as a capsule (circles
+// and pills alike), without YouTube's tint on top. Checked on every layout, in case YouTube sets its blur again.
+static IMP OriginalGlassLayout;
+
+static void PGGlassLayout(UIView *self, SEL _cmd) {
+    if (OriginalGlassLayout) ((void (*)(id, SEL))OriginalGlassLayout)(self, _cmd);
+    static Class effectClass, cornerClass;
+    if (effectClass == Nil) effectClass = NSClassFromString(@"UIGlassEffect");
+    if (cornerClass == Nil) cornerClass = NSClassFromString(@"UICornerConfiguration");
+    UIVisualEffectView *blur = nil;
+    UIView *overlay = nil;
+    @try {
+        blur = [self valueForKey:@"blurEffectView"];
+        overlay = [self valueForKey:@"overlayView"];
+    } @catch (__unused NSException *e) {}
+    if (effectClass == Nil || ![blur isKindOfClass:UIVisualEffectView.class]) return;
+    if (![blur.effect isKindOfClass:effectClass]) {
+        SEL make = NSSelectorFromString(@"effectWithStyle:");
+        blur.effect = ((id (*)(id, SEL, NSInteger))objc_msgSend)(effectClass, make, PGGlassStyle == 2 ? 1 : 0); // UIGlassEffectStyle: 0 regular, 1 clear
+        SEL capsule = NSSelectorFromString(@"capsuleConfiguration"), setCorner = NSSelectorFromString(@"setCornerConfiguration:");
+        if ([cornerClass respondsToSelector:capsule] && [blur respondsToSelector:setCorner]) {
+            ((void (*)(id, SEL, id))objc_msgSend)(blur, setCorner, ((id (*)(id, SEL))objc_msgSend)(cornerClass, capsule));
+        }
+    }
+    if ([overlay isKindOfClass:UIView.class] && !overlay.hidden) overlay.hidden = YES;
+}
 
 #pragma mark - Top-row buttons
 
@@ -435,10 +463,7 @@ __attribute__((constructor)) static void PGInit(void) {
         Class config = NSClassFromString(@"YTColdConfig");
         PGHookTyped(config, @"enableLiquidGlassEffect", "B", (IMP)PGEnableLiquidGlass);
         PGHookTyped(config, @"liquidGlassEffectStyle", "q", (IMP)PGLiquidGlassStyle);
-        // YouTube 21.43.5 also keeps them on the player's own config.
-        Class playerConfig = NSClassFromString(@"YTColdConfigWatchPlayerClientGlobalConfigImpl");
-        PGHookTyped(playerConfig, @"enableLiquidGlassEffect", "B", (IMP)PGEnableLiquidGlass);
-        PGHookTyped(playerConfig, @"liquidGlassEffectStyle", "q", (IMP)PGLiquidGlassStyle);
+        TBHHookMethod(NSClassFromString(@"YTFrostedGlassView"), @"layoutSubviews", (IMP)PGGlassLayout, &OriginalGlassLayout);
         TBHHookMethod(NSClassFromString(@"YTMainAppControlsOverlayView"), @"layoutSubviews", (IMP)PGOverlayLayout, &OriginalOverlayLayout);
         TBHHookMethod(NSClassFromString(@"YTInlinePlayerBarContainerView"), @"layoutSubviews", (IMP)PGBarContainerLayout, &OriginalBarContainerLayout);
     }
