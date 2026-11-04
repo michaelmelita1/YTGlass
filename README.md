@@ -66,6 +66,7 @@ Pure Objective-C runtime swizzling, no CydiaSubstrate/ElleKit dependency. See `L
 
 ## Changelog
 
+- **0.2.2**: the tab bar no longer comes up over the video page when the list under a video is scrolled; Hide Navigation bar leaves the page alone in full screen landscape (it could get into a layout loop with YouTube behind the player, making it lag).
 - **0.2.1**: for YTPlus 6.0 and YouTube 21.43.5; new Liquid Glass Tab Bar switch: iOS's own tab bar with YouTube's icons, every YTPlus tab and Search as a glass circle beside it, with Hold Home for settings and the mini player fix (the old Hold Home switch is replaced); Hide Home tabs (the Subscriptions, Music and Live tabs at the top of Home); large title on Watch later; the Liquid Glass player works again on 21.43.5; YTPlus's tabs get their labels back; Home's title and spacing found from the page itself.
 - **0.1.2**: holding the Home tab opens YouTube's settings instead of YTPlus's tab bar menu (Hold Home for settings switch); the Settings item in that menu is removed.
 - **0.1.1**: built on 0.0.6 for Home's smooth scrolling; the mini player moves with the tab bar on every page, with the bar's own animation; the tab bar stays hidden when a list bounces at its end; DeArrow and AiSList back, lighter while scrolling; Slide Up animation renamed; YTPlus Fixes removed (YTPlus fixed the bug); smaller optimisations.
