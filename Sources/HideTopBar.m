@@ -59,6 +59,8 @@ static UIViewController *THBPage(UIView *view) {
 // when its tab is opened); whether something is open on top is checked every time, since a tab's pages can
 // share one bar. Search results reuse the page's bar, which is shown while it holds the search box
 // (THBShowsSearchBox).
+static UIView *THBCombo(UIView *view);
+
 static BOOL THBAllowed(UIView *header) {
     if (header.window == nil) return NO;
     UIViewController *page = THBPage(header);
@@ -76,7 +78,15 @@ static BOOL THBAllowed(UIView *header) {
     if (allowed && nav && !shared) allowed = THBIsRoot(page, nav); // the page's own bar: only on the tab's first screen
     if (allowed) {
         NSString *tab = TBHSelectedTabIdentifier();
-        if (tab == nil) return NO; // not readable yet: decided on a later pass
+        if (tab == nil) { // not readable yet (Home at launch): asked again shortly, since Home's bar may not lay out again
+            __weak UIView *weakHeader = header;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                UIView *again = weakHeader;
+                [again setNeedsLayout];
+                [THBCombo(again) setNeedsLayout];
+            });
+            return NO;
+        }
         allowed = [@[@"FEwhat_to_watch", @"FEsubscriptions", @"FEhistory"] containsObject:tab];
     }
     objc_setAssociatedObject(header, THBDecisionKey, @(allowed), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
