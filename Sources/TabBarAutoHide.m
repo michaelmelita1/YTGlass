@@ -62,7 +62,25 @@ static NSString *TBHItemIdentifier(UIView *item) {
     id renderer = nil, identifier = nil;
     @try { renderer = [item valueForKey:@"renderer"]; } @catch (__unused NSException *e) {}
     @try { identifier = [renderer valueForKey:@"pivotIdentifier"]; } @catch (__unused NSException *e) {}
-    return [identifier isKindOfClass:NSString.class] ? identifier : nil;
+    if ([identifier isKindOfClass:NSString.class] && [identifier length]) return identifier;
+    // YouTube 21.43.5's Home tab has no pivot identifier: the page it opens (browse ID) is the same name.
+    @try { identifier = [renderer valueForKeyPath:@"navigationEndpoint.browseEndpoint.browseId"]; } @catch (__unused NSException *e) { identifier = nil; }
+    return [identifier isKindOfClass:NSString.class] && [identifier length] ? identifier : nil;
+}
+
+// TEMPORARY: every tab button as YTGlass reads it.
+void TBHLogItems(void) {
+    UIView *bar = TBHFindBar();
+    NSMutableArray<UIView *> *items = [NSMutableArray array];
+    if (bar) TBHCollectItems(bar, items);
+    for (UIView *item in items) {
+        id renderer = nil, pivot = nil, browse = nil;
+        @try { renderer = [item valueForKey:@"renderer"]; } @catch (__unused NSException *e) {}
+        @try { pivot = [renderer valueForKey:@"pivotIdentifier"]; } @catch (__unused NSException *e) {}
+        @try { browse = [renderer valueForKeyPath:@"navigationEndpoint.browseEndpoint.browseId"]; } @catch (__unused NSException *e) {}
+        YTGDLog(@"YTGDIAG item %@ selected=%d assoc=%@ traits=%d pivot='%@' browse='%@' renderer=%@", NSStringFromClass(item.class), TBHItemSelected(item),
+            objc_getAssociatedObject(item, TBHSelectedKey), (item.accessibilityTraits & UIAccessibilityTraitSelected) != 0, pivot, browse, NSStringFromClass([renderer class]));
+    }
 }
 
 // Whether the tab bar has a Shorts tab (YTPlus can remove it). Decided once every tab's identifier can be read;

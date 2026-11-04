@@ -79,6 +79,9 @@ static BOOL THBAllowed(UIView *header) {
     if (allowed) {
         NSString *tab = TBHSelectedTabIdentifier();
         if (tab == nil) { // not readable yet (Home at launch): asked again shortly, since Home's bar may not lay out again
+            static int tries;
+            if (tries++ % 10 == 0) TBHLogItems(); // TEMPORARY
+            if (tries > 25) return NO; // about 5 seconds
             __weak UIView *weakHeader = header;
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 UIView *again = weakHeader;
