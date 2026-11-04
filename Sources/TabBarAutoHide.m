@@ -63,9 +63,13 @@ static NSString *TBHItemIdentifier(UIView *item) {
     @try { renderer = [item valueForKey:@"renderer"]; } @catch (__unused NSException *e) {}
     @try { identifier = [renderer valueForKey:@"pivotIdentifier"]; } @catch (__unused NSException *e) {}
     if ([identifier isKindOfClass:NSString.class] && [identifier length]) return identifier;
-    // YouTube 21.43.5's Home tab has no pivot identifier: the page it opens (browse ID) is the same name.
-    @try { identifier = [renderer valueForKeyPath:@"navigationEndpoint.browseEndpoint.browseId"]; } @catch (__unused NSException *e) { identifier = nil; }
-    return [identifier isKindOfClass:NSString.class] && [identifier length] ? identifier : nil;
+    // YouTube 21.43.5's Home button has no renderer at all: it's the first button in the bar.
+    if (renderer != nil) return nil;
+    UIView *bar = item.superview;
+    while (bar != nil && ![NSStringFromClass(bar.class) isEqualToString:@"YTPivotBarView"]) bar = bar.superview;
+    NSMutableArray<UIView *> *items = [NSMutableArray array];
+    if (bar) TBHCollectItems(bar, items);
+    return items.firstObject == item ? @"FEwhat_to_watch" : nil;
 }
 
 // TEMPORARY: every tab button as YTGlass reads it.
