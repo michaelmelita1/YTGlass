@@ -13,7 +13,7 @@ void YTGDWrite(NSString *line);
 
 // Replaces -[cls selectorName] with replacement and hands back the previous implementation.
 // The method is added on cls first, so an inherited implementation isn't replaced for every subclass.
-static inline BOOL YTGInstallHook(Class cls, NSString *selectorName, IMP replacement, IMP *original) {
+static inline BOOL TBHHookMethod(Class cls, NSString *selectorName, IMP replacement, IMP *original) {
     SEL selector = NSSelectorFromString(selectorName);
     Method method = cls ? class_getInstanceMethod(cls, selector) : NULL;
     if (method == NULL || replacement == NULL) return NO;
@@ -24,11 +24,6 @@ static inline BOOL YTGInstallHook(Class cls, NSString *selectorName, IMP replace
     if (original) *original = previous;
     return YES;
 }
-
-// DEBUG BUILD: every hook has its own switch on the YTGlass page (off by default). A hook that's off isn't installed,
-// but still hands back the current implementation, so code calling it directly keeps working (Settings.m).
-BOOL YTGHookMethod(Class cls, NSString *selectorName, IMP replacement, IMP *original, const char *file);
-#define TBHHookMethod(cls, selectorName, replacement, original) YTGHookMethod(cls, selectorName, replacement, original, __FILE_NAME__)
 
 // Settings.m: feature switches (on unless switched off in YouTube's settings; read at launch).
 extern NSString *const YTGTopBarKey; // no top bar, status bar blur, large titles (HideTopBar.m)

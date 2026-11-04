@@ -22,32 +22,12 @@ static BOOL YTGSwitchValue(NSString *key, BOOL fallback) {
     return [value respondsToSelector:@selector(boolValue)] ? [value boolValue] : fallback;
 }
 
-// DEBUG BUILD: every feature runs; its hooks are switched one by one instead (YTGHookMethod).
-BOOL YTGFeatureEnabled(__unused NSString *key) {
-    return YES;
+BOOL YTGFeatureEnabled(NSString *key) {
+    return YTGSwitchValue(key, YES); // on unless switched off
 }
 
-BOOL YTGOptInEnabled(__unused NSString *key) {
-    return YES;
-}
-
-#pragma mark - Hook switches (debug build)
-
-static NSMutableArray<NSArray<NSString *> *> *YTGHooks; // {title, description, key} in the order they were asked for
-
-BOOL YTGHookMethod(Class cls, NSString *selectorName, IMP replacement, IMP *original, const char *file) {
-    if (cls == Nil || selectorName.length == 0) return NO;
-    NSString *source = [[NSString stringWithUTF8String:file] stringByDeletingPathExtension];
-    NSString *method = [NSString stringWithFormat:@"%c[%@ %@]", class_isMetaClass(cls) ? '+' : '-', NSStringFromClass(cls), selectorName];
-    NSString *key = [NSString stringWithFormat:@"YTGlass_Hook %@ %@", source, method];
-    if (YTGHooks == nil) YTGHooks = [NSMutableArray array];
-    NSArray *entry = @[source, method, key];
-    if (![YTGHooks containsObject:entry]) [YTGHooks addObject:entry];
-    if (YTGSwitchValue(key, NO)) return YTGInstallHook(cls, selectorName, replacement, original);
-    Method existing = class_getInstanceMethod(cls, NSSelectorFromString(selectorName));
-    if (existing == NULL || replacement == NULL) return NO;
-    if (original) *original = method_getImplementation(existing);
-    return YES;
+BOOL YTGOptInEnabled(NSString *key) {
+    return YTGSwitchValue(key, NO); // off unless switched on (features that go online)
 }
 
 YTGSearchStyle YTGSearchMode(void) {
@@ -169,18 +149,29 @@ static void YTGUpdateSection(id self, SEL _cmd, NSUInteger category, id entry) {
     }
     id delegate = nil;
     @try { delegate = [self valueForKey:@"_settingsViewControllerDelegate"]; } @catch (__unused NSException *e) {}
-    // DEBUG BUILD: one switch per hook (off by default) instead of the feature switches.
-    NSMutableArray *items = [NSMutableArray array];
-    id picker = YTGSearchPicker(self, delegate);
-    if (picker) [items addObject:picker];
-    for (NSArray<NSString *> *hook in YTGHooks) {
-        id item = YTGSwitch(hook[1], hook[0], hook[2], YES);
-        if (item) [items addObject:item];
-    }
-    for (NSString *note in @[@"Restart YouTube to apply changes.", @"YTGlass " YTG_VERSION]) {
-        id item = YTGNote(note);
-        if (item) [items addObject:item];
-    }
+    NSArray *items = [@[
+        YTGSearchPicker(self, delegate) ?: NSNull.null,
+        YTGSwitch(@"Hide Navigation bar",
+                  @"Removes the navigation bar and styles it like a native app.", YTGTopBarKey, NO) ?: NSNull.null,
+        YTGSwitch(@"Liquid Glass player",
+                  @"Liquid Glass video player controls.", YTGPlayerKey, NO) ?: NSNull.null,
+        YTGSwitch(@"Hold Home for settings",
+                  @"Hold the Home tab to open YouTube's settings instead of YTPlus's menu.", YTGHomeHoldKey, NO) ?: NSNull.null,
+        YTGSwitch(@"Hide Home tabs",
+                  @"Removes the Subscriptions, Music and Live tabs at the top of Home.", YTGHomeTabsKey, NO) ?: NSNull.null,
+        YTGSwitch(@"Slide Up animation",
+                  @"Disable the default animation when loading a new tab.", YTGSlideUpKey, NO) ?: NSNull.null,
+        YTGSwitch(@"DeArrow titles",
+                  @"Replace video titles with DeArrow's community titles.", YTGDeArrowTitlesKey, YES) ?: NSNull.null,
+        YTGSwitch(@"DeArrow thumbnails",
+                  @"Replace thumbnails with DeArrow's chosen frames.", YTGDeArrowThumbnailsKey, YES) ?: NSNull.null,
+        YTGSwitch(@"Hide AI channels",
+                  @"Remove channels on the AiSList blocklist.", YTGHideAIKey, YES) ?: NSNull.null,
+        YTGSwitch(@"Hide suspected AI channels",
+                  @"Remove channels on the AiSList warnlist.", YTGHideSuspectedAIKey, YES) ?: NSNull.null,
+        YTGNote(@"Restart YouTube to apply changes.") ?: NSNull.null,
+        YTGNote(@"YTGlass " YTG_VERSION) ?: NSNull.null,
+    ] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"self != %@", NSNull.null]];
     SEL withIcon = NSSelectorFromString(@"setSectionItems:forCategory:title:icon:titleDescription:headerHidden:");
     SEL withoutIcon = NSSelectorFromString(@"setSectionItems:forCategory:title:titleDescription:headerHidden:");
     if ([delegate respondsToSelector:withIcon]) {
@@ -193,9 +184,9 @@ static void YTGUpdateSection(id self, SEL _cmd, NSUInteger category, id entry) {
 __attribute__((constructor)) static void YTGSettingsInit(void) {
     @autoreleasepool {
         Class presentation = NSClassFromString(@"YTAppSettingsPresentationData");
-        if (presentation) YTGInstallHook(object_getClass(presentation), @"settingsCategoryOrder", (IMP)YTGCategoryOrder, &OriginalCategoryOrder);
-        YTGInstallHook(NSClassFromString(@"YTSettingsGroupData"), @"orderedCategories", (IMP)YTGOrderedCategories, &OriginalOrderedCategories);
-        YTGInstallHook(NSClassFromString(@"YTSettingsSectionItemManager"), @"updateSectionForCategory:withEntry:", (IMP)YTGUpdateSection, &OriginalUpdateSection);
+        if (presentation) TBHHookMethod(object_getClass(presentation), @"settingsCategoryOrder", (IMP)YTGCategoryOrder, &OriginalCategoryOrder);
+        TBHHookMethod(NSClassFromString(@"YTSettingsGroupData"), @"orderedCategories", (IMP)YTGOrderedCategories, &OriginalOrderedCategories);
+        TBHHookMethod(NSClassFromString(@"YTSettingsSectionItemManager"), @"updateSectionForCategory:withEntry:", (IMP)YTGUpdateSection, &OriginalUpdateSection);
         // YouGroupSettings adds its list in its own constructor; join it once every library has loaded.
         dispatch_async(dispatch_get_main_queue(), ^{ YTGJoinTweaksGroup(); });
     }

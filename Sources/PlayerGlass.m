@@ -435,6 +435,10 @@ __attribute__((constructor)) static void PGInit(void) {
         Class config = NSClassFromString(@"YTColdConfig");
         PGHookTyped(config, @"enableLiquidGlassEffect", "B", (IMP)PGEnableLiquidGlass);
         PGHookTyped(config, @"liquidGlassEffectStyle", "q", (IMP)PGLiquidGlassStyle);
+        // YouTube 21.43.5 also keeps them on the player's own config.
+        Class playerConfig = NSClassFromString(@"YTColdConfigWatchPlayerClientGlobalConfigImpl");
+        PGHookTyped(playerConfig, @"enableLiquidGlassEffect", "B", (IMP)PGEnableLiquidGlass);
+        PGHookTyped(playerConfig, @"liquidGlassEffectStyle", "q", (IMP)PGLiquidGlassStyle);
         TBHHookMethod(NSClassFromString(@"YTMainAppControlsOverlayView"), @"layoutSubviews", (IMP)PGOverlayLayout, &OriginalOverlayLayout);
         TBHHookMethod(NSClassFromString(@"YTInlinePlayerBarContainerView"), @"layoutSubviews", (IMP)PGBarContainerLayout, &OriginalBarContainerLayout);
     }

@@ -56,4 +56,11 @@ static void YTGDGlass(void) {
 __attribute__((constructor)) static void YTGDInit(void) {
     YTGDLog(@"YTGDIAG launch YTGlass %s", YTG_VERSION);
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ YTGDGlass(); });
+    // The glass effect again once a video has had time to open.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(30 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        Class glass = NSClassFromString(@"YTFrostedGlassView");
+        SEL effect = NSSelectorFromString(@"liquidGlassEffect");
+        id value = [glass respondsToSelector:effect] ? ((id (*)(id, SEL))objc_msgSend)(glass, effect) : nil;
+        YTGDLog(@"YTGDIAG glass at 30s: liquidGlassEffect = %@", value);
+    });
 }
