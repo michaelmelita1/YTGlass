@@ -566,10 +566,18 @@ static void THBListLayout(UICollectionView *self, SEL _cmd) {
     if (measured >= 0.0 && fabs(known.doubleValue - measured) > 0.5) [THBCombo(self) setNeedsLayout];
 }
 
+// The window is landscape: only the full screen player shows, and the page lies hidden behind it. Its bar, header and
+// list are left alone until portrait: rearranged there, YouTube undid it and the two kept at it without end (a layout
+// loop on Subscriptions' header that kept the main thread busy and the player from responding).
+static BOOL THBLandscape(UIView *view) {
+    UIWindow *window = view.window;
+    return window != nil && CGRectGetWidth(window.bounds) > CGRectGetHeight(window.bounds);
+}
+
 static void THBArrangePage(UIView *combo) {
     UIWindow *window = combo.window;
     UIView *child = THBCall(combo, @"childView");
-    if (window == nil || ![child isKindOfClass:UIView.class]) return;
+    if (window == nil || ![child isKindOfClass:UIView.class] || THBLandscape(combo)) return;
     UIScrollView *list = THBMainList(child, window);
     UILabel *label = objc_getAssociatedObject(combo, THBTitleKey);
     if (list == nil) { label.hidden = YES; return; }
@@ -656,7 +664,7 @@ static void THBPageHeaderLayout(UIView *self, SEL _cmd) {
         }
     }
     if (OriginalPageHeaderLayout) ((void (*)(id, SEL))OriginalPageHeaderLayout)(self, _cmd);
-    if (THBPageBarRemoved(self)) {
+    if (THBPageBarRemoved(self) && !THBLandscape(self)) {
         THBFixContentsFrame(self);
         UIView *combo = THBCombo(self);
         if (combo) THBArrangePage(combo);
@@ -685,7 +693,7 @@ static IMP OriginalResetOffset;
 static void THBResetOffset(UIView *self, SEL _cmd) {
     if (OriginalResetOffset) ((void (*)(id, SEL))OriginalResetOffset)(self, _cmd);
     UIView *child = THBCall(self, @"childView");
-    if (THBHiddenHeader(self) == nil || self.window == nil || ![child isKindOfClass:UIView.class]) return;
+    if (THBHiddenHeader(self) == nil || self.window == nil || ![child isKindOfClass:UIView.class] || THBLandscape(self)) return;
     UIScrollView *list = THBMainList(child, self.window);
     CGFloat top = -list.adjustedContentInset.top;
     if (list && !list.isTracking && list.contentOffset.y > top && list.contentOffset.y <= 0.5) {
