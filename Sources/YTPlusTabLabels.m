@@ -1,7 +1,7 @@
 // YTPlusTabLabels
 // Workaround for a YTPlus 6.0 bug: its tab bar (a system UITabBar inside YouTube's YTPivotBarView) gets its tabs with
-// no titles even when YTPlus's "Remove tab labels" is off. Each untitled tab is given the label of YouTube's own tab in
-// the same place, in the app's language. Drop this file once YTPlus fixes it.
+// no titles even when YTPlus's "Remove tab labels" is off (YouTube 21.43.5's own tabs have none). Each untitled tab is
+// given the label of YouTube's tab in the same place (TBHTabTitles). Drop this file once YTPlus fixes it.
 //
 // Pure Objective-C runtime swizzling: no CydiaSubstrate / ElleKit dependency.
 

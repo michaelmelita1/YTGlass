@@ -505,7 +505,13 @@ NSArray *TBHTabTitles(UIView *bar) {
     NSMutableArray<UIView *> *items = [NSMutableArray array];
     if (bar) TBHCollectItems(bar, items);
     NSMutableArray *titles = [NSMutableArray arrayWithCapacity:items.count];
-    for (UIView *item in items) [titles addObject:TBHItemTitle(item) ?: NSNull.null];
+    // YouTube 21.43.5's tabs have no labels of their own: the known tabs are named in English.
+    NSDictionary *known = @{ @"FEwhat_to_watch": @"Home", @"FEsubscriptions": @"Subscriptions", @"FEhistory": @"History",
+                             @"FElibrary": @"You", @"FEyou": @"You", @"FEshorts": @"Shorts" };
+    for (UIView *item in items) {
+        NSString *identifier = TBHItemIdentifier(item);
+        [titles addObject:TBHItemTitle(item) ?: (identifier ? known[identifier] : nil) ?: NSNull.null];
+    }
     return titles;
 }
 

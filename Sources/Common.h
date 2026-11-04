@@ -49,7 +49,7 @@ NSString *TBHSelectedTabIdentifier(void);
 NSString *TBHSelectedTabTitle(void);
 // TabBarAutoHide.m: a tab's label as YouTube shows it (e.g. for FEwhat_to_watch), or nil.
 NSString *TBHTabTitle(NSString *identifier);
-// TabBarAutoHide.m: every tab's label in YouTube's own order (NSNull where it has none).
+// TabBarAutoHide.m: every tab's label in YouTube's own order (YouTube's, else an English name; NSNull if unknown).
 NSArray *TBHTabTitles(UIView *bar);
 void TBHLogItems(void); // TEMPORARY
 
