@@ -1,6 +1,6 @@
 // HideTopBar
-// Removes YouTube's top navigation bar (YTHeaderView) on every page except search (whose text box lives
-// in it) and the You tab. Pages scroll behind the status bar under a variable blur, like Apple Music, and
+// Removes YouTube's top navigation bar (YTHeaderView) on the first screen of Home, Subscriptions and History
+// (never search's own screen, whose text box lives in it, or any other tab). Pages scroll behind the status bar under a variable blur, like Apple Music, and
 // Home, Subscriptions and History get a large Apple Music-style title.
 //
 // How: YouTube's header already knows how to collapse itself (it does that when you scroll down on Home):
@@ -54,8 +54,7 @@ static UIViewController *THBPage(UIView *view) {
     return nil;
 }
 
-// Only a tab's first screen (Home, Subscriptions, History, ...), never search's own screen or the You tab's
-// first screen. Pages opened on top (a channel, a playlist, ...) keep YouTube's bar, so they keep their back
+// Only the first screen of Home, Subscriptions and History, never search's own screen or another tab. Pages opened on top (a channel, a playlist, ...) keep YouTube's bar, so they keep their back
 // button and their own header. The tab check is decided when the page first appears (the You page is created
 // when its tab is opened); whether something is open on top is checked every time, since a tab's pages can
 // share one bar. Search results reuse the page's bar, which is shown while it holds the search box
@@ -75,8 +74,11 @@ static BOOL THBAllowed(UIView *header) {
         if (searchClass && [v isKindOfClass:searchClass]) allowed = NO;
     }
     if (allowed && nav && !shared) allowed = THBIsRoot(page, nav); // the page's own bar: only on the tab's first screen
-    NSString *tab = allowed ? TBHSelectedTabIdentifier() : nil;
-    if ([tab isEqualToString:@"FElibrary"] || [tab isEqualToString:@"FEyou"]) allowed = NO;
+    if (allowed) {
+        NSString *tab = TBHSelectedTabIdentifier();
+        if (tab == nil) return NO; // not readable yet: decided on a later pass
+        allowed = [@[@"FEwhat_to_watch", @"FEsubscriptions", @"FEhistory"] containsObject:tab];
+    }
     objc_setAssociatedObject(header, THBDecisionKey, @(allowed), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return allowed;
 }
@@ -513,7 +515,9 @@ static NSString *THBTitleText(UIView *combo) {
     if (text) return text.length ? text : nil;
     if (combo.window == nil) return nil;
     UIViewController *page = THBPage(combo);
-    NSString *tab = page ? THBTabOfRootPage(page) : nil;
+    if (page == nil || TBHSelectedTabIdentifier() == nil) return nil; // not readable yet: looked up on a later pass
+    NSString *tab = THBTabOfRootPage(page);
+    YTGDLog(@"YTGDIAG title tab=%@ label=%@", tab, TBHSelectedTabTitle()); // TEMPORARY
     // The tab's own label, so the title follows the app's language; English if YouTube doesn't give one.
     NSDictionary *titles = @{ @"FEwhat_to_watch": @"Home", @"FEsubscriptions": @"Subscriptions", @"FEhistory": @"History" };
     text = tab ? titles[tab] : nil;

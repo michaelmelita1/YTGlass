@@ -1,10 +1,6 @@
 // TEMPORARY DIAGNOSTIC (0.2.0~debug2..4): logs where YTPlus 6.0 puts its tab bar. Read with idevicesyslog, grep YTGDIAG.
 
 #import "Common.h"
-#import <os/log.h>
-
-// Public (unredacted) log line.
-#define YTGDLog(...) os_log(OS_LOG_DEFAULT, "%{public}s", [NSString stringWithFormat:__VA_ARGS__].UTF8String)
 
 static NSString *YTGDChain(UIView *view) {
     NSMutableArray *parts = [NSMutableArray array];

@@ -20,6 +20,7 @@ static void MSOpenSettings(void) {
     for (UIResponder *r = bar; r != nil && responder == nil; r = r.nextResponder) {
         if ([r isKindOfClass:UIViewController.class] && [r respondsToSelector:parentSel]) responder = r;
     }
+    YTGDLog(@"YTGDIAG hold open bar=%@ responder=%@", bar, responder); // TEMPORARY
     if (responder == nil) return;
     id command = ((id (*)(id, SEL))objc_msgSend)(commandClass, commandSel);
     id event = ((id (*)(id, SEL, id, UIView *, id, BOOL, id))objc_msgSend)(eventClass, eventSel, command, bar, nil, NO, responder);
@@ -41,6 +42,7 @@ static BOOL MSOnHomeTab(UIContextMenuInteraction *interaction, CGPoint location)
     BOOL inYouTubeBar = NO;
     for (UIView *v = view.superview; v && !inYouTubeBar; v = v.superview) inYouTubeBar = [v isKindOfClass:pivotClass];
     NSString *home = inYouTubeBar ? TBHTabTitle(@"FEwhat_to_watch") : nil;
+    YTGDLog(@"YTGDIAG hold view=%@ inBar=%d home=%@ items=%@", NSStringFromClass(view.class), inYouTubeBar, home, [((UITabBar *)view).items valueForKey:@"title"]); // TEMPORARY
     if (home.length == 0) return NO;
     for (UITabBarItem *item in ((UITabBar *)view).items) {
         if (![item.title isEqualToString:home]) continue;
@@ -65,10 +67,12 @@ static BOOL MSStillHeld(UIView *view) {
 }
 
 static UIContextMenuConfiguration *MSConfiguration(id self, SEL _cmd, UIContextMenuInteraction *interaction, CGPoint location) {
+    YTGDLog(@"YTGDIAG hold menu asked %@ at %.0f,%.0f", NSStringFromClass(interaction.view.class), location.x, location.y); // TEMPORARY
     if (MSOnHomeTab(interaction, location)) {
         // Settings open after a little longer, if the finger is still down then (letting go earlier does nothing).
         __weak UIView *view = interaction.view;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(MSExtraHold * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            YTGDLog(@"YTGDIAG hold still held=%d", MSStillHeld(view)); // TEMPORARY
             if (!MSStillHeld(view)) return;
             [[UIImpactFeedbackGenerator.alloc initWithStyle:UIImpactFeedbackStyleMedium] impactOccurred];
             MSOpenSettings();

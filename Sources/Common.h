@@ -4,6 +4,10 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
+#import <os/log.h>
+
+// TEMPORARY: unredacted log line (read with idevicesyslog, grep YTGDIAG).
+#define YTGDLog(...) os_log(OS_LOG_DEFAULT, "%{public}s", [NSString stringWithFormat:__VA_ARGS__].UTF8String)
 
 // Replaces -[cls selectorName] with replacement and hands back the previous implementation.
 // The method is added on cls first, so an inherited implementation isn't replaced for every subclass.
