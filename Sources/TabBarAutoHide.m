@@ -134,11 +134,14 @@ static BOOL TBHBarHidden(UIView *bar) {
 #pragma mark - Hide / show
 
 static CGFloat TBHProgress; // 0 = fully shown, 1 = scrolled far enough to hide
+static __weak UIScrollView *TBHScroll;      // the feed currently being followed
 
 static void TBHSetBarHidden(UIView *bar, BOOL hidden) {
     if (bar == nil || TBHBarHidden(bar) == hidden) return;
     if (hidden && (TBHOnShorts(bar) || bar.hidden || bar.alpha < 0.01 || bar.window == nil)) return;
     TBHProgress = hidden ? 1.0 : 0.0;
+    UIScrollView *scroll = TBHScroll; // TEMPORARY DIAGNOSTIC
+    YTGDAct(@"TabBarAutoHide", scroll, [NSString stringWithFormat:@"%@ the tab bar (following %@)", hidden ? @"hides" : @"shows", scroll ? NSStringFromClass(scroll.class) : @"no list"]);
     TBHAppViewCall(TBHAppView(bar), hidden ? @"hidePivotBar" : @"showPivotBar");
 }
 
@@ -185,6 +188,7 @@ static void TBHMoveMini(UIView *mini, BOOL barHidden, BOOL withBar) {
     CALayer *shown = mini.layer.presentationLayer ?: mini.layer;
     CGFloat from = [[shown valueForKeyPath:@"transform.translation.y"] doubleValue];
     if (fabs(from - target) < 0.5 && fabs(mini.transform.ty - target) < 0.5) return;
+    YTGDAct(@"MiniPlayerFix", nil, [NSString stringWithFormat:@"moves the mini player %.0f -> %.0f (%@)", from, target, withBar ? @"with the bar" : @"after YouTube placed it"]); // TEMPORARY DIAGNOSTIC
     mini.transform = CGAffineTransformMakeTranslation(0.0, target);
     // The same animation YouTube gives the bar (its duration and curve, or spring), so they move as one.
     CAAnimation *barAnimation = withBar ? TBHBarAnimation(bar) : nil;
@@ -207,11 +211,13 @@ static void TBHMoveMini(UIView *mini, BOOL barHidden, BOOL withBar) {
 static IMP OriginalHidePivotBar, OriginalShowPivotBar;
 
 static void TBHHidePivotBar(UIView *self, SEL _cmd) {
+    YTGDWrite(@"YouTube: hidePivotBar"); // TEMPORARY DIAGNOSTIC
     ((void (*)(id, SEL))OriginalHidePivotBar)(self, _cmd);
     if (TBHMini.window == self.window) TBHMoveMini(TBHMini, YES, YES);
 }
 
 static void TBHShowPivotBar(UIView *self, SEL _cmd) {
+    YTGDWrite(@"YouTube: showPivotBar"); // TEMPORARY DIAGNOSTIC
     ((void (*)(id, SEL))OriginalShowPivotBar)(self, _cmd);
     if (TBHMini.window == self.window) TBHMoveMini(TBHMini, NO, YES);
 }
@@ -234,6 +240,7 @@ static void TBHMiniCheck(void) {
     // Placed by frame while shifted (YouTube drags it that way): where it is on screen is where YouTube wants it, so
     // the shift is folded into its position first (nothing moves), then it's lined up with the bar as usual.
     if (TBHMiniFramed && fabs(mini.transform.ty) > 0.5 && [mini.layer animationForKey:@"ytglass.follow"] == nil) {
+        YTGDAct(@"MiniPlayerFix", nil, [NSString stringWithFormat:@"folds its shift %.0f into the mini player's position", mini.transform.ty]); // TEMPORARY DIAGNOSTIC
         CGPoint center = mini.center;
         center.y += mini.transform.ty;
         [UIView performWithoutAnimation:^{
@@ -279,7 +286,6 @@ static CGFloat TBHListEnd(UIScrollView *scrollView) {
 }
 
 static CGFloat const TBHDistance = 64.0; // points of scrolling down before the bar hides
-static __weak UIScrollView *TBHScroll;      // the feed currently being followed
 static CFTimeInterval TBHLastTouchTime;     // last time any scroll view was dragged or flinging
 static CGFloat TBHLastOffset;
 static const void *TBHPanKey = &TBHPanKey;
@@ -368,6 +374,7 @@ static void TBHScrollSetContentOffset(UIScrollView *receiver, SEL selector, CGPo
         if (!userDriven || !TBHEligible(receiver, bar)) return;
         TBHScroll = receiver;
         TBHLastOffset = y;
+        YTGDAct(@"TabBarAutoHide", receiver, [NSString stringWithFormat:@"follows list %@", NSStringFromClass(receiver.class)]); // TEMPORARY DIAGNOSTIC
         return;
     }
     BOOL hidden = TBHBarHidden(bar);

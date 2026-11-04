@@ -192,6 +192,7 @@ static void THBHeaderLayout(UIView *self, SEL _cmd) {
     if (OriginalHeaderLayout) ((void (*)(id, SEL))OriginalHeaderLayout)(self, _cmd);
     BOOL hide = THBAllowed(self) && !THBShowsSearchBox(self, 10);
     if (hide == THBFlagged(self)) return;
+    YTGDAct(@"HideTopBar", self, [NSString stringWithFormat:@"%@ top bar on %@ (tab %@)", hide ? @"hides" : @"shows", NSStringFromClass(THBPage(self).class), TBHSelectedTabIdentifier()]); // TEMPORARY DIAGNOSTIC
     UIView *combo = THBCombo(self);
     // The bar plus any wrappers YouTube puts around it (never anything holding the feed or chips).
     UIView *content = THBCall(combo, @"childView"), *subheader = THBCall(combo, @"subheaderView");
@@ -382,7 +383,10 @@ static BOOL THBPageBarRemoved(UIView *pageHeader) {
 static IMP OriginalSetHeaderSizes, OriginalPageHeaderLayout;
 
 static void THBSetHeaderSizes(UIView *self, SEL _cmd, CGFloat header, CGFloat subheader, CGFloat topOffset, BOOL animated) {
-    if (THBPageBarRemoved(self)) header = subheader = 0.0;
+    if (THBPageBarRemoved(self)) {
+        header = subheader = 0.0;
+        YTGDAct(@"HideTopBar", self, @"page header sizes zeroed"); // TEMPORARY DIAGNOSTIC
+    }
     ((void (*)(id, SEL, CGFloat, CGFloat, CGFloat, BOOL))OriginalSetHeaderSizes)(self, _cmd, header, subheader, topOffset, animated);
 }
 
@@ -425,7 +429,7 @@ static NSString *const THBPartIvars[3] = { @"_headerView", @"_subheaderView", @"
 
 #define THB_PART_HOOK(i) \
     static void THBSetPart##i(UIView *self, SEL _cmd, UIView *part) { \
-        if (part != nil && THBPageBarRemoved(self)) part = nil; \
+        if (part != nil && THBPageBarRemoved(self)) { part = nil; YTGDAct(@"HideTopBar", self, @"page header part detached"); } /* TEMPORARY DIAGNOSTIC */ \
         ((void (*)(id, SEL, UIView *))OriginalSetPart[i])(self, _cmd, part); \
     }
 THB_PART_HOOK(0)
@@ -462,7 +466,10 @@ static const void *THBListTargetKey = &THBListTargetKey; // list -> NSNumber: th
 static IMP OriginalSetAdjustment;
 
 static void THBSetAdjustment(UIScrollView *self, SEL _cmd, UIScrollViewContentInsetAdjustmentBehavior behavior) {
-    if (objc_getAssociatedObject(self, THBListTargetKey)) behavior = UIScrollViewContentInsetAdjustmentNever;
+    if (objc_getAssociatedObject(self, THBListTargetKey)) {
+        if (behavior != UIScrollViewContentInsetAdjustmentNever) YTGDAct(@"HideTopBar", self, [NSString stringWithFormat:@"inset adjustment forced off on %@", NSStringFromClass(self.class)]); // TEMPORARY DIAGNOSTIC
+        behavior = UIScrollViewContentInsetAdjustmentNever;
+    }
     ((void (*)(id, SEL, UIScrollViewContentInsetAdjustmentBehavior))OriginalSetAdjustment)(self, _cmd, behavior);
 }
 
@@ -499,6 +506,7 @@ static CGFloat THBEffectiveBase(id self, SEL _cmd) {
     id header = THBIvarMatching(self, ^BOOL(id value) { return [value respondsToSelector:maxSel]; });
     CGFloat headerMax = header ? ((CGFloat (*)(id, SEL))objc_msgSend)(header, maxSel) : 0.0;
     CGFloat target = [objc_getAssociatedObject(list, THBListTargetKey) doubleValue];
+    YTGDAct(@"HideTopBar", list, [NSString stringWithFormat:@"effective base inset %.0f -> %.0f", base, target - headerMax]); // TEMPORARY DIAGNOSTIC
     return target - headerMax;
 }
 
@@ -607,6 +615,7 @@ static void THBArrangePage(UIView *combo) {
         }
         if (fabs(list.contentInset.top - target) >= 0.5) {
             BOOL atTop = old == nil || list.contentOffset.y <= -old.doubleValue + 1.0 || list.contentOffset.y <= -list.contentInset.top + 1.0;
+            YTGDAct(@"HideTopBar", list, [NSString stringWithFormat:@"list %@ top inset %.0f -> %.0f", NSStringFromClass(list.class), list.contentInset.top, target]); // TEMPORARY DIAGNOSTIC
             UIEdgeInsets inset = list.contentInset;
             inset.top = target;
             list.contentInset = inset;
@@ -619,6 +628,7 @@ static void THBArrangePage(UIView *combo) {
         BOOL refreshing = delta < -20.0 && list.contentOffset.y < -(list.adjustedContentInset.top + delta) - 1.0; // spinner's room
         if (fabs(delta) >= 0.5 && !refreshing) {
             BOOL atTop = list.contentOffset.y <= -list.adjustedContentInset.top + 1.0;
+            YTGDAct(@"HideTopBar", list, [NSString stringWithFormat:@"Home list %@ top inset %+.0f", NSStringFromClass(list.class), delta]); // TEMPORARY DIAGNOSTIC
             UIEdgeInsets inset = list.contentInset;
             inset.top += delta;
             list.contentInset = inset;
@@ -659,6 +669,7 @@ static void THBPageHeaderLayout(UIView *self, SEL _cmd) {
             UIView *part = ivar ? object_getIvar(self, ivar) : nil;
             SEL setter = NSSelectorFromString(THBPartSetters[i]);
             if ([part isKindOfClass:UIView.class] && [self respondsToSelector:setter]) {
+                YTGDAct(@"HideTopBar", self, [NSString stringWithFormat:@"removed page header part %@", NSStringFromClass(part.class)]); // TEMPORARY DIAGNOSTIC
                 ((void (*)(id, SEL, UIView *))objc_msgSend)(self, setter, nil);
                 [part removeFromSuperview];
             }
@@ -698,6 +709,7 @@ static void THBResetOffset(UIView *self, SEL _cmd) {
     UIScrollView *list = THBMainList(child, self.window);
     CGFloat top = -list.adjustedContentInset.top;
     if (list && !list.isTracking && list.contentOffset.y > top && list.contentOffset.y <= 0.5) {
+        YTGDAct(@"HideTopBar", list, @"list scrolled back above its title after a refresh"); // TEMPORARY DIAGNOSTIC
         list.contentOffset = CGPointMake(list.contentOffset.x, top);
     }
 }
