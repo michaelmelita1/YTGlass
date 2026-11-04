@@ -1,7 +1,7 @@
 // HomeHold
-// Holding the Home tab opens YouTube's settings straight away instead of YTPlus's tab bar menu. YTPlus's tab bar is a
+// Holding the Home tab (the first one) opens YouTube's settings straight away instead of YTPlus's tab bar menu. YTPlus's tab bar is a
 // system UITabBar with a UIContextMenuInteraction; its delegate's contextMenuInteraction:configurationForMenuAtLocation:
-// gets no menu (nil) when the press is on the Home tab (other tabs keep YTPlus's menu). Settings open through YouTube's
+// gets no menu (nil) when the press is on the first tab (other tabs keep YTPlus's menu). Settings open through YouTube's
 // own command, +[YTICommand applicationSettingsNavigationEndpoint].
 //
 // Pure Objective-C runtime swizzling: no CydiaSubstrate / ElleKit dependency.
@@ -33,7 +33,7 @@ static void MSOpenSettings(void) {
 static NSMutableDictionary<NSString *, NSValue *> *MSOriginalConfigs; // class name -> its original method
 static NSMutableSet<Class> *MSWrapped;
 
-// The press is on the Home tab of YTPlus's tab bar (matched by YouTube's own label for Home).
+// The press is on the first tab (Home) of YTPlus's tab bar. YTPlus 6.0's tabs have no titles, so it goes by position.
 static BOOL MSOnHomeTab(UIContextMenuInteraction *interaction, CGPoint location) {
     UIView *view = interaction.view;
     if (![view isKindOfClass:UITabBar.class]) return NO;
@@ -41,16 +41,14 @@ static BOOL MSOnHomeTab(UIContextMenuInteraction *interaction, CGPoint location)
     if (pivotClass == Nil) pivotClass = NSClassFromString(@"YTPivotBarView");
     BOOL inYouTubeBar = NO;
     for (UIView *v = view.superview; v && !inYouTubeBar; v = v.superview) inYouTubeBar = [v isKindOfClass:pivotClass];
-    NSString *home = inYouTubeBar ? TBHTabTitle(@"FEwhat_to_watch") : nil;
-    YTGDLog(@"YTGDIAG hold view=%@ inBar=%d home=%@ items=%@", NSStringFromClass(view.class), inYouTubeBar, home, [((UITabBar *)view).items valueForKey:@"title"]); // TEMPORARY
-    if (home.length == 0) return NO;
-    for (UITabBarItem *item in ((UITabBar *)view).items) {
-        if (![item.title isEqualToString:home]) continue;
-        UIView *itemView = nil;
-        @try { itemView = [item valueForKey:@"view"]; } @catch (__unused NSException *e) {}
-        return [itemView isKindOfClass:UIView.class] && CGRectContainsPoint([itemView convertRect:itemView.bounds toView:view], location);
-    }
-    return NO;
+    UITabBarItem *first = ((UITabBar *)view).items.firstObject;
+    UIView *itemView = nil;
+    @try { itemView = [first valueForKey:@"view"]; } @catch (__unused NSException *e) {}
+    BOOL onHome = inYouTubeBar && [itemView isKindOfClass:UIView.class] &&
+                  CGRectContainsPoint([itemView convertRect:itemView.bounds toView:view], location);
+    YTGDLog(@"YTGDIAG hold inBar=%d itemView=%@ frame=%@ onHome=%d", inYouTubeBar, NSStringFromClass(itemView.class),
+            NSStringFromCGRect([itemView convertRect:itemView.bounds toView:view]), onHome); // TEMPORARY
+    return onHome;
 }
 
 static NSTimeInterval const MSExtraHold = 0.3; // held this much longer than iOS's own menu needs
