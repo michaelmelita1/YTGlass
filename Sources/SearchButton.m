@@ -203,6 +203,15 @@ static void TBSBarLayout(UIView *self, SEL _cmd) {
         objc_setAssociatedObject(tabBar, TBSManagedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         TBSReapply(tabBar);
     }
+    // YTPlus 6.0 places the tab bar without -setFrame: (its bounds and centre): a frame we didn't give it is its
+    // full frame, narrowed here.
+    NSValue *adjusted = objc_getAssociatedObject(tabBar, TBSAdjustedKey);
+    if (adjusted == nil || !CGRectEqualToRect(adjusted.CGRectValue, tabBar.frame)) {
+        CGRect current = tabBar.frame, narrowed = TBSNarrowed(current, tabBar);
+        objc_setAssociatedObject(tabBar, TBSFullKey, [NSValue valueWithCGRect:current], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(tabBar, TBSAdjustedKey, [NSValue valueWithCGRect:narrowed], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        ((void (*)(id, SEL, CGRect))OriginalTabBarSetFrame)(tabBar, @selector(setFrame:), narrowed);
+    }
     NSValue *full = objc_getAssociatedObject(tabBar, TBSFullKey);
     if (full == nil || CGRectEqualToRect(full.CGRectValue, tabBar.frame)) { // too narrow to share
         button.hidden = YES;
