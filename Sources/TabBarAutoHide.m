@@ -501,6 +501,14 @@ static NSString *TBHItemTitle(UIView *item) {
     return label.length ? label : nil;
 }
 
+NSArray *TBHTabTitles(UIView *bar) {
+    NSMutableArray<UIView *> *items = [NSMutableArray array];
+    if (bar) TBHCollectItems(bar, items);
+    NSMutableArray *titles = [NSMutableArray arrayWithCapacity:items.count];
+    for (UIView *item in items) [titles addObject:TBHItemTitle(item) ?: NSNull.null];
+    return titles;
+}
+
 NSString *TBHSelectedTabTitle(void) {
     UIView *bar = TBHFindBar();
     UIView *selected = bar ? TBHSelectedItem(bar) : nil;
