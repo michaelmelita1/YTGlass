@@ -570,6 +570,24 @@ static void THBArrangePage(UIView *combo) {
     if (window == nil || ![child isKindOfClass:UIView.class]) return;
     UIScrollView *list = THBMainList(child, window);
     UILabel *label = objc_getAssociatedObject(combo, THBTitleKey);
+    { // TEMPORARY: what the page looks like when it gets no title (logged when it changes)
+        static NSString *last;
+        NSString *tab = TBHSelectedTabIdentifier();
+        NSMutableString *tree = [NSMutableString string];
+        NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:child];
+        for (NSUInteger i = 0; i < queue.count && i < 400; i++) {
+            UIView *v = queue[i];
+            if ([v isKindOfClass:UIScrollView.class]) {
+                CGRect f = [v convertRect:v.bounds toView:nil];
+                [tree appendFormat:@" | %@ %.0f,%.0f %.0fx%.0f paging=%d hidden=%d alpha=%.2f", NSStringFromClass(v.class), f.origin.x, f.origin.y,
+                    f.size.width, f.size.height, ((UIScrollView *)v).pagingEnabled, v.hidden, v.alpha];
+            }
+            [queue addObjectsFromArray:v.subviews];
+        }
+        NSString *line = [NSString stringWithFormat:@"YTGDIAG page tab=%@ list=%@ title=%@ views=%lu%@", tab, list ? NSStringFromClass(list.class) : @"nil",
+            list ? THBTitleText(combo) : @"-", (unsigned long)queue.count, tree];
+        if (![line isEqualToString:last]) { last = line; YTGDLog(@"%@", line); }
+    }
     if (list == nil) { label.hidden = YES; return; }
     NSString *title = THBTitleText(combo);
     CGFloat status = window.safeAreaInsets.top;
