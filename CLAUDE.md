@@ -31,6 +31,9 @@ Maintainer: Michael Melita. See README.md for features and file layout.
 Theos (rootless, arm64). Plain dylib, no CydiaSubstrate/ElleKit: hooks use `TBHHookMethod` in
 `Sources/Common.h` (pure ObjC runtime swizzling).
 
+The `ios-logos-tweak` skill (`.claude/skills/`) is for its general tweak advice only. Its Logos, Substrate and
+`MSHookIvar` rules don't apply here: keep the plain runtime hooks so the dylib stays injectable into an IPA.
+
 ```sh
 make clean && make package FINALPACKAGE=1 \
   ADDITIONAL_CFLAGS="-Wunused-const-variable -Wunused-parameter -Wunreachable-code-aggressive -Wunused-function"
