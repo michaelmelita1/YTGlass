@@ -10,7 +10,7 @@ Liquid Glass tweaks for YouTube builds with **YTPlus 6.0** and its Liquid Glass 
 - **Round glass search button** to the right of the tab bar, like Apple Music and the App Store on iOS 26.
   It matches the capsule's height, hides and shows with the bar, and opens YouTube's normal search.
 - **No top bar**: YouTube's top navigation bar is removed on every page except search and the You tab.
-  Pages scroll behind the status bar under a variable blur with a light tint, like Apple Music.
+  Pages scroll behind the status bar under iOS's own soft scroll edge.
 - **Large titles**: Home, Subscriptions, History and Watch later get an Apple Music-style title that scrolls with the page.
   Subscriptions' avatars/chips and History's title/search box/chips are removed.
 - **Liquid Glass player controls**: YouTube's own Liquid Glass (clear style) behind play/pause and previous/next, and a 40pt glass circle behind each top-row player button (captions, settings, cast, and buttons other tweaks add there).
@@ -44,8 +44,7 @@ Hiding the tab bar on scroll and Home's spacing are always on.
   taps the hidden top bar's `id.ui.navigation.search.button`.
 - `Sources/HideTopBar.m`: keeps `YTHeaderView` collapsed with YouTube's own `scrollHeaderViewWithOffset:` and
   invisible; detaches the page headers in `YTVariableHeightHeaderView`; sets each page list's top inset and adds
-  the title; draws the blur, ported from [BlurUIKit](https://github.com/TimOliver/BlurUIKit)'s
-  `VariableBlurView` (MIT, Tim Oliver).
+  the title; gives the list iOS's soft top scroll edge (`UIScrollEdgeEffectStyle.softStyle`).
 - `Sources/PlayerGlass.m`: turns on YouTube's `enableLiquidGlassEffect` flag (style 2, clear) so its `YTFrostedGlassView`s use iOS 26 glass, and adds a `YTFrostedGlassView` circle inside each top-row `YTQTMButton` of `YTMainAppControlsOverlayView`.
 - `Sources/TabAnimation.m`: turns off YouTube's `+[YTModernTransitions isTabSlideUpAnimationEnabled]` flag.
 - `Sources/HomeSpacing.m`: after Home's `YTTopAlignGridCollectionViewLayout` lays out, its 8pt `ELMCellNode` spacer
@@ -66,6 +65,7 @@ Pure Objective-C runtime swizzling, no CydiaSubstrate/ElleKit dependency. See `L
 
 ## Changelog
 
+- **0.2.3**: Hide Navigation bar uses iOS's own soft scroll edge under the status bar instead of a hand-made blur.
 - **0.2.2**: the tab bar no longer comes up over the video page when the list under a video is scrolled; Hide Navigation bar leaves the page alone in full screen landscape (it could get into a layout loop with YouTube behind the player, making it lag).
 - **0.2.1**: for YTPlus 6.0 and YouTube 21.43.5; new Liquid Glass Tab Bar switch: iOS's own tab bar with YouTube's icons, every YTPlus tab and Search as a glass circle beside it, with Hold Home for settings and the mini player fix (the old Hold Home switch is replaced); Hide Home tabs (the Subscriptions, Music and Live tabs at the top of Home); large title on Watch later; the Liquid Glass player works again on 21.43.5; YTPlus's tabs get their labels back; Home's title and spacing found from the page itself.
 - **0.1.2**: holding the Home tab opens YouTube's settings instead of YTPlus's tab bar menu (Hold Home for settings switch); the Settings item in that menu is removed.

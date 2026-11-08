@@ -1,6 +1,6 @@
 // HideTopBar
 // Removes YouTube's top navigation bar (YTHeaderView) on the first screen of Home, Subscriptions, History
-// and Watch later (never search's own screen, whose text box lives in it, or any other tab). Pages scroll behind the status bar under a variable blur, like Apple Music, and
+// and Watch later (never search's own screen, whose text box lives in it, or any other tab). Pages scroll behind the status bar under iOS's own soft scroll edge, and
 // Home, Subscriptions, History and Watch later get a large Apple Music-style title.
 //
 // How: YouTube's header already knows how to collapse itself (it does that when you scroll down on Home):
@@ -205,159 +205,47 @@ static void THBHeaderLayout(UIView *self, SEL _cmd) {
     [combo setNeedsLayout];
 }
 
-#pragma mark - Status bar blur
+#pragma mark - Status bar edge
 //
-// Ported from BlurUIKit's VariableBlurView (https://github.com/TimOliver/BlurUIKit, MIT, (c) Tim Oliver),
-// with its defaults: a "variableBlur" filter (the class the effect view's own blur uses) of radius 3.5
-// with edge normalising, masked by a linear gradient (full at the top, none at the bottom), the backdrop
-// at 0.75 scale and the material overlay hidden; plus a smooth (ease-in-out sine) wash of the page colour
-// whose clear end extends 25% below the view (BlurUIKit uses 50% light / 25% dark; this is a lighter tint).
-static CGFloat const THBTintLight = 0.2, THBTintDark = 0.1;
+// iOS's own scroll edge effect (iOS 26+), as in Vitrine: the soft style is the thin fading blur under the status bar.
+// iOS 27 resolves a scroll view's automatic top edge to the hard style (a flat band), so the soft one is set on the
+// page's list while the bar is removed, and the automatic one put back when YouTube's bar returns.
 
-static CGImageRef THBGradientImage(NSInteger length, BOOL smooth) {
-    if (length <= 0) return NULL;
-    static NSMutableDictionary<NSString *, id> *cache; // images by length and curve
-    if (cache == nil) cache = [NSMutableDictionary dictionary];
-    NSString *key = [NSString stringWithFormat:@"%ld-%d", (long)length, smooth];
-    id cached = cache[key];
-    if (cached) return (__bridge CGImageRef)cached;
-    CGColorSpaceRef space = CGColorSpaceCreateDeviceGray();
-    CGContextRef context = CGBitmapContextCreate(NULL, 1, length, 8, 2, space, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
-    CGColorSpaceRelease(space);
-    if (context == NULL) return NULL;
-    uint8_t *pixels = CGBitmapContextGetData(context);
-    CGFloat reciprocal = length > 1 ? 1.0 / (CGFloat)(length - 1) : 0.0;
-    for (NSInteger i = 0; i < length; i++) { // row 0 is the top
-        CGFloat t = (CGFloat)i * reciprocal;
-        CGFloat eased = smooth ? -(cos(M_PI * t) - 1.0) / 2.0 : t;
-        CGFloat alpha = 1.0 - eased;
-        pixels[i * 2] = 0;
-        pixels[i * 2 + 1] = (uint8_t)MIN(MAX(alpha * 255.0, 0.0), 255.0);
-    }
-    CGImageRef image = CGBitmapContextCreateImage(context);
-    CGContextRelease(context);
-    if (image) cache[key] = (__bridge_transfer id)image; // the cache owns it
-    return image;
+static const void *THBEdgeListKey = &THBEdgeListKey; // YTHeaderContentComboView -> weak box of the list given the soft edge
+
+static void THBSetTopEdge(UIScrollView *list, NSString *styleName) {
+    static Class styleClass;
+    static BOOL looked;
+    if (!looked) { looked = YES; styleClass = NSClassFromString(@"UIScrollEdgeEffectStyle"); }
+    SEL getter = NSSelectorFromString(@"topEdgeEffect");
+    if (list == nil || styleClass == Nil || ![list respondsToSelector:getter]) return;
+    id edge = ((id (*)(id, SEL))objc_msgSend)(list, getter);
+    SEL make = NSSelectorFromString(styleName);
+    if (edge == nil || ![styleClass respondsToSelector:make]) return;
+    id style = ((id (*)(id, SEL))objc_msgSend)(styleClass, make);
+    if ([edge valueForKey:@"style"] != style) [edge setValue:style forKey:@"style"];
+    if ([[edge valueForKey:@"hidden"] boolValue]) [edge setValue:@NO forKey:@"hidden"];
 }
 
-@interface THBBlurView : UIView
-@property (nonatomic, strong) UIVisualEffectView *effectView;
-@property (nonatomic, strong) UIImageView *dimmingView;
-@property (nonatomic, assign) NSInteger maskLength;
-@property (nonatomic, assign) NSInteger dimmingLength;
-@end
-
-@implementation THBBlurView
-
-- (instancetype)initWithFrame:(CGRect)frame {
-    if ((self = [super initWithFrame:frame])) {
-        self.userInteractionEnabled = NO;
-        self.clipsToBounds = NO;
-        _effectView = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleRegular]];
-        _effectView.userInteractionEnabled = NO;
-        [self addSubview:_effectView];
-        _dimmingView = [UIImageView new];
-        _dimmingView.userInteractionEnabled = NO;
-        _dimmingView.contentMode = UIViewContentModeScaleToFill;
-        [self addSubview:_dimmingView];
+static void THBSoftTopEdge(UIView *combo, UIScrollView *list) {
+    NSPointerArray *box = objc_getAssociatedObject(combo, THBEdgeListKey);
+    if (box == nil) {
+        box = [NSPointerArray weakObjectsPointerArray];
+        objc_setAssociatedObject(combo, THBEdgeListKey, box, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    return self;
+    if (box.count == 0 || [box pointerAtIndex:0] != (__bridge void *)list) {
+        if (box.count) THBSetTopEdge((__bridge UIScrollView *)[box pointerAtIndex:0], @"automaticStyle");
+        box.count = 0;
+        [box addPointer:(__bridge void *)list];
+    }
+    THBSetTopEdge(list, @"softStyle"); // every pass, in case UIKit resolves the style again
 }
 
-- (UIView *)backdropView {
-    for (UIView *subview in self.effectView.subviews) {
-        if ([NSStringFromClass(subview.class).lowercaseString containsString:@"backdrop"]) return subview;
-    }
-    return nil;
-}
-
-- (void)updateBlurFilter {
-    UIView *backdrop = [self backdropView];
-    CGImageRef mask = THBGradientImage(self.maskLength, NO);
-    if (backdrop == nil || mask == NULL) return;
-    static Class filterClass;
-    if (filterClass == Nil) {
-        UIVisualEffectView *probe = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleRegular]];
-        for (UIView *subview in probe.subviews) {
-            if ([NSStringFromClass(subview.class).lowercaseString containsString:@"backdrop"]) {
-                filterClass = [subview.layer.filters.firstObject class];
-            }
-        }
-        if (filterClass == Nil) filterClass = [backdrop.layer.filters.firstObject class];
-    }
-    SEL make = NSSelectorFromString(@"filterWithType:");
-    if (filterClass == Nil || ![filterClass respondsToSelector:make]) return;
-    id filter = ((id (*)(id, SEL, NSString *))objc_msgSend)(filterClass, make, @"variableBlur");
-    if (filter == nil) return;
-    @try {
-        [filter setValue:(__bridge id)mask forKey:@"inputMaskImage"];
-        [filter setValue:@3.5 forKey:@"inputRadius"];
-        [filter setValue:@YES forKey:@"inputNormalizeEdges"];
-        backdrop.layer.filters = @[ filter ];
-        [backdrop.layer setValue:@0.75 forKey:@"scale"];
-    } @catch (__unused NSException *e) {
-        return;
-    }
-    for (UIView *subview in self.effectView.subviews) {
-        if ([NSStringFromClass(subview.class).lowercaseString containsString:@"subview"]) subview.hidden = YES;
-    }
-}
-
-- (void)didMoveToWindow {
-    [super didMoveToWindow];
-    if (self.window) {
-        self.maskLength = 0;
-        [self setNeedsLayout];
-    }
-}
-
-- (void)layoutSubviews {
-    [super layoutSubviews];
-    CGRect bounds = self.bounds;
-    if (CGRectGetWidth(bounds) <= 0.0 || CGRectGetHeight(bounds) <= 0.0) return;
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
-    self.effectView.frame = bounds;
-    NSInteger maskLength = (NSInteger)ceil(CGRectGetHeight(bounds));
-    if (maskLength != self.maskLength || [self backdropView].layer.filters.count != 1) {
-        self.maskLength = maskLength;
-        [self updateBlurFilter];
-    }
-    CGFloat dimmingHeight = ceil(CGRectGetHeight(bounds) * 1.25);
-    self.dimmingView.frame = CGRectMake(0.0, 0.0, CGRectGetWidth(bounds), dimmingHeight);
-    if ((NSInteger)dimmingHeight != self.dimmingLength || self.dimmingView.image == nil) {
-        self.dimmingLength = (NSInteger)dimmingHeight;
-        CGImageRef image = THBGradientImage(self.dimmingLength, YES);
-        self.dimmingView.image = image ? [[UIImage imageWithCGImage:image] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate] : nil;
-    }
-    self.dimmingView.tintColor = UIColor.systemBackgroundColor;
-    self.dimmingView.alpha = self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark ? THBTintDark : THBTintLight;
-    [CATransaction commit];
-}
-
-// Light/dark switches: re-tint, and put the blur filter back if the effect view reset it.
-- (void)traitCollectionDidChange:(UITraitCollection *)previous {
-    [super traitCollectionDidChange:previous];
-    [self setNeedsLayout];
-}
-
-@end
-
-static const void *THBBlurKey = &THBBlurKey; // YTHeaderContentComboView -> blur view
-
-static void THBPlaceBlur(UIView *combo) {
-    THBBlurView *blur = objc_getAssociatedObject(combo, THBBlurKey);
-    if (blur == nil) {
-        blur = [[THBBlurView alloc] initWithFrame:CGRectZero];
-        objc_setAssociatedObject(combo, THBBlurKey, blur, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    if (blur.superview != combo || combo.subviews.lastObject != blur) [combo addSubview:blur];
-    CGFloat status = MAX(20.0, combo.window ? combo.window.safeAreaInsets.top : 0.0);
-    CGFloat top = [combo convertPoint:CGPointZero fromView:nil].y; // the screen's top edge, in the page
-    // As in BlurUIKit's example: the top safe area (the status bar), from the top of the screen.
-    CGRect frame = CGRectMake(0.0, top, CGRectGetWidth(combo.bounds), status);
-    if (!CGRectEqualToRect(blur.frame, frame)) blur.frame = frame;
-    blur.hidden = NO;
+static void THBResetTopEdge(UIView *combo) {
+    NSPointerArray *box = objc_getAssociatedObject(combo, THBEdgeListKey);
+    if (box.count == 0) return;
+    THBSetTopEdge((__bridge UIScrollView *)[box pointerAtIndex:0], @"automaticStyle");
+    box.count = 0;
 }
 
 #pragma mark - Pages' own headers (Subscriptions avatars and chips, History title and search box)
@@ -437,7 +325,7 @@ static void THBFixContentsFrame(UIView *pageHeader) {
 #pragma mark - The page's list and its title
 //
 // The first row sits right below the clock, or below the large title on Home, Subscriptions, History and Watch later
-// (Apple Music style: a large bold title that scrolls with the list, under the status bar blur). Checked
+// (Apple Music style: a large bold title that scrolls with the list, under the status bar edge). Checked
 // on every layout, in screen coordinates, and only changed when it's off.
 
 static CGFloat const THBTitleArea = 52.0;
@@ -581,6 +469,7 @@ static void THBArrangePage(UIView *combo) {
     UIScrollView *list = THBMainList(child, window);
     UILabel *label = objc_getAssociatedObject(combo, THBTitleKey);
     if (list == nil) { label.hidden = YES; return; }
+    THBSoftTopEdge(combo, list);
     NSString *title = THBTitleText(combo);
     CGFloat status = window.safeAreaInsets.top;
     CGFloat area = title ? THBTitleArea : 0.0;
@@ -671,19 +560,18 @@ static void THBPageHeaderLayout(UIView *self, SEL _cmd) {
     }
 }
 
-// The page: hide YouTube's frosted background behind the bar, place the blur, and arrange the list.
+// The page: hide YouTube's frosted background behind the bar and arrange the list (which gets the soft edge).
 static void THBComboLayout(UIView *self, SEL _cmd) {
     if (OriginalComboLayout) ((void (*)(id, SEL))OriginalComboLayout)(self, _cmd);
     Ivar blurIvar = class_getInstanceVariable(object_getClass(self), "_blurContainerView");
     UIView *frosting = blurIvar ? object_getIvar(self, blurIvar) : nil;
     if (THBHiddenHeader(self) == nil) {
-        ((UIView *)objc_getAssociatedObject(self, THBBlurKey)).hidden = YES;
+        THBResetTopEdge(self);
         ((UIView *)objc_getAssociatedObject(self, THBTitleKey)).hidden = YES;
         if ([frosting isKindOfClass:UIView.class] && THBFlagged(frosting)) THBSetFlag(frosting, NO); // YouTube's bar is back
         return;
     }
     if ([frosting isKindOfClass:UIView.class] && !THBFlagged(frosting)) THBSetFlag(frosting, YES);
-    THBPlaceBlur(self);
     THBArrangePage(self);
 }
 
