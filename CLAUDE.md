@@ -46,7 +46,7 @@ The build must be warning-free. Delete old `.deb`s in `packages/` before each bu
 
 YouTube Settings → YTGlass, in the Tweaks group of PoomSmart's YouGroupSettings (bundled in YTPlus).
 Category `'ytgl'`. NSUserDefaults keys: `YTGlass_SearchMode` (0 Off, 1 Separate, 2 Integrated),
-`YTGlass_HideTopBar`, `YTGlass_PlayerGlass`. Hide-tab-bar-on-scroll is always on. Each feature reads its
+`YTGlass_HideTopBar`, `YTGlass_PlayerGlass`, `YTGlass_NativeMenus` (Native Glass Menu). Hide-tab-bar-on-scroll is always on. Each feature reads its
 switch at launch, so changes apply after a restart (the page's bottom row says so).
 
 ## YouTube internals learned (21.39.4; all hooked names still present in 21.43.5)
@@ -96,6 +96,11 @@ switch at launch, so changes apply after a restart (the page's bottom row says s
   are not in it.
 
 ## YouTube 21.43.5 / YTPlus 6.0 differences
+
+- Menus: a ⋯ tap or a long press makes `YTMenuController` fill a `YTDefaultSheetController` with `YTActionSheetAction`s and
+  present it with `-presentFromViewController:animated:completion:` (`sourceView` = the video). In 21.43.5 the actions'
+  `title`/`iconImage` are empty: the text and icon are on each action's `button` (`YTMenuItemMDCButton`); `handler` runs it.
+  A UIMenu with no items never shows (UIKit just ends the presentation), which looked like YouTube blocking menus.
 
 - Home's tab button (YTPivotBarItemView) has no renderer, so no identifier or title: it's recognised as the first
   button (`TBHItemIdentifier`). YouTube's tabs have no labels at all; `YTPlusTabLabels.m` names YTPlus's tabs in English.

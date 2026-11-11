@@ -21,6 +21,8 @@ Liquid Glass tweaks for YouTube builds with **YTPlus 6.0** and its Liquid Glass 
   behind) are collapsed, so its videos are spaced like Subscriptions'.
 - **Liquid Glass Tab Bar**: iOS 26's own tab bar in place of YouTube's and YTPlus's, with YouTube's icons and Search as
   iOS's glass circle beside it. Holding Home opens YouTube's settings, and the mini player moves with the bar.
+- **Native Glass Menu**: a long press on a video, or its ⋯ button, opens iOS's own menu with YouTube's items (and
+  YTPlus's), right at the finger or the ⋯. The ⋯ below the player, whose sheet can't be an iOS menu, is hidden.
 - **DeArrow** (off by default): replaces video titles and/or thumbnails in feeds with [DeArrow](https://dearrow.ajay.app)'s
   community ones.
 - **Hide AI channels** (off by default): removes channels on the [AiSList](https://aisloplist.com) blocklist and/or
@@ -53,6 +55,11 @@ Hiding the tab bar on scroll and Home's spacing are always on.
   bar takes touches), with YTPlus's tab items and iOS 27's `prominentTabIdentifier` for the search circle. Choosing a
   tab chooses it on YTPlus's bar; it hides with `YTPivotBarView`. Holding Home sends YouTube's
   `+[YTICommand applicationSettingsNavigationEndpoint]`.
+- `Sources/NativeMenus.m`: when YouTube's `YTDefaultSheetController` presents a video's menu during a long press or
+  from a ⋯ (`forcedSheetStyle` 1), its `YTActionSheetAction`s (title and icon from each action's button) become a
+  `UIMenu`, opened at the finger with `UIContextMenuInteraction`'s `_presentMenuAtLocation:` in a small window of its
+  own; the picked action's handler runs once the menu has closed. Hides the last button of
+  `id.video.non_scrollable_action_bar` (the ⋯ below the player).
 - `Sources/DeArrow.m`: ported from YTKACE v1.1.3; reads the video ID from each feed thumbnail's URL
   (`ELMImageNode`), asks DeArrow's branding API, sets the DeArrow thumbnail on the node and the title on the card's
   title `ELMTextNode`. Results are cached; requests are limited to 4 at once and 90 a minute.
@@ -65,6 +72,7 @@ Pure Objective-C runtime swizzling, no CydiaSubstrate/ElleKit dependency. See `L
 
 ## Changelog
 
+- **0.2.4**: Native Glass Menu: iOS's own menu for a long press on a video and its ⋯ button (with YouTube's and YTPlus's items); the ⋯ below the player is hidden.
 - **0.2.3**: Hide Navigation bar uses iOS's own soft scroll edge under the status bar instead of a hand-made blur.
 - **0.2.2**: the tab bar no longer comes up over the video page when the list under a video is scrolled; Hide Navigation bar leaves the page alone in full screen landscape (it could get into a layout loop with YouTube behind the player, making it lag).
 - **0.2.1**: for YTPlus 6.0 and YouTube 21.43.5; new Liquid Glass Tab Bar switch: iOS's own tab bar with YouTube's icons, every YTPlus tab and Search as a glass circle beside it, with Hold Home for settings and the mini player fix (the old Hold Home switch is replaced); Hide Home tabs (the Subscriptions, Music and Live tabs at the top of Home); large title on Watch later; the Liquid Glass player works again on 21.43.5; YTPlus's tabs get their labels back; Home's title and spacing found from the page itself.

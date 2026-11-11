@@ -22,6 +22,7 @@ static inline BOOL TBHHookMethod(Class cls, NSString *selectorName, IMP replacem
 // Settings.m: feature switches (on unless switched off in YouTube's settings; read at launch).
 extern NSString *const YTGTopBarKey; // no top bar, soft status bar edge, large titles (HideTopBar.m)
 extern NSString *const YTGPlayerKey; // Liquid Glass player controls (PlayerGlass.m)
+extern NSString *const YTGNativeMenusKey; // iOS menu for a video's long press and ⋯; hides the ⋯ below the player (NativeMenus.m)
 extern NSString *const YTGSlideUpKey; // no slide-up animation when switching tabs (TabAnimation.m)
 extern NSString *const YTGHomeTabsKey;          // no Subscriptions/Music/Live tabs at the top of Home (HomeTabs.m)
 extern NSString *const YTGDeArrowTitlesKey;     // DeArrow community titles (DeArrow.m)

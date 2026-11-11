@@ -9,6 +9,7 @@ static NSInteger const YTGSection = 'ytgl'; // settings category number (4-char 
 static NSString *const YTGSearchModeKey = @"YTGlass_SearchMode";
 NSString *const YTGTopBarKey = @"YTGlass_HideTopBar";
 NSString *const YTGPlayerKey = @"YTGlass_PlayerGlass";
+NSString *const YTGNativeMenusKey = @"YTGlass_NativeMenus";
 NSString *const YTGSlideUpKey = @"YTGlass_NoSlideUpAnimation";
 NSString *const YTGHomeTabsKey = @"YTGlass_HideHomeTabs";
 NSString *const YTGDeArrowTitlesKey = @"YTGlass_DeArrowTitles";
@@ -154,6 +155,8 @@ static void YTGUpdateSection(id self, SEL _cmd, NSUInteger category, id entry) {
                   @"Removes the navigation bar and styles it like a native app.", YTGTopBarKey, NO) ?: NSNull.null,
         YTGSwitch(@"Liquid Glass player",
                   @"Liquid Glass video player controls.", YTGPlayerKey, NO) ?: NSNull.null,
+        YTGSwitch(@"Native Glass Menu",
+                  @"iOS's own menu for a long press on a video and its ⋯ button.", YTGNativeMenusKey, NO) ?: NSNull.null,
         YTGSwitch(@"Liquid Glass Tab Bar",
                   @"iOS's own tab bar with Search beside it. Hold Home to open settings; the mini player stays above the bar.",
                   YTGSystemTabBarKey, NO) ?: NSNull.null,
